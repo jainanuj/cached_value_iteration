@@ -11,7 +11,7 @@
 #include "med_hash.h"
 #include "intqueue.h"
 
-#define PART_SIZE 1000000       //3
+#define PART_SIZE 5000       //3
 #define ARR_SIZE  1000000
 #define NUM_PARTS_IN_LEVEL1 5
 
@@ -51,6 +51,7 @@ typedef struct state {
     int bestAction;
     int Terminal;
     int goal;
+    int local_state_index;
     
 } state_t;
 typedef struct arr_states_t {
@@ -65,15 +66,11 @@ typedef struct part_t {
     double heat, primary_heat;
     int visits, washes, my_heap_num;
     int num_states;
-    state_t *states;
     int *states_ind;
     /* we only use this variable while loading the MDP */
     int cur_local_state;
     int *variable_ordering;
     /* this is the matrix stuff we use */
-    vec_t values;
-    vec_t *rhs;
-    vec_t *values_lower;        //lower bound of the value of the state.
     
 //    matrix_t *cur_pol_matrix;
     
@@ -105,6 +102,7 @@ typedef struct world_t {
     queue *part_queue;
     queue *part_level1_queue;
     bit_queue *part_level0_bit_queue;
+    arr_states_t all_states_store;
 //    bit_queue *terminal_bit_queue;
 //    bit_queue *dead_bit_queue;
 //    bit_queue *planningStates;

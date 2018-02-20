@@ -263,8 +263,8 @@ double cache_aware_vi(struct StateListNode *list, int MaxIter, int round, int co
 #endif
     heat_epsilon_current = heat_epsilon_initial;
     iter_count = 0;
-    epsilon_partition = 10*heat_epsilon_final; //heat_epsilon_initial;
-    epsilon_overall = 10*heat_epsilon_final;
+    epsilon_partition = heat_epsilon_initial;
+    epsilon_overall = heat_epsilon_final;
     
     while (epsilon_overall > heat_epsilon_final)
     {
@@ -367,20 +367,20 @@ world_t *init_world(struct StateListNode *list, int component_size, int round)
     assign_state_to_part_num(list, w);
     
     if (ARR_SIZE > component_size)
-        w->a
+    {
+        w->all_states_store.states = (state_t *)malloc( sizeof(state_t)*component_size);
+        w->all_states_store.values.elts = (double *)malloc(sizeof(double)*component_size);
+        w->all_states_store.values.nelts = component_size;
+    }
     
     for (l_part = 0; l_part < w->num_global_parts; l_part++)
     {
-        w->parts[ l_part ].states = (state_t *)malloc( sizeof(state_t)*w->parts[l_part].num_states);
         w->parts[ l_part ].states_ind = (int *)malloc(sizeof(int) * w->parts[l_part].num_states);
-        if ( w->parts[ l_part ].states == NULL ) {
+        if ( w->parts[ l_part ].states_ind == NULL ) {
             wlog( 1, "Error allocating states!\n" );
             exit( 0 );
         }
-        memset( w->parts[ l_part ].states, 0, sizeof(state_t)*w->parts[l_part].num_states );
         memset( w->parts[ l_part ].states_ind, 0, sizeof(int)*w->parts[l_part].num_states );
-        w->parts[l_part].values.elts = (double *)malloc(sizeof(double)*w->parts[l_part].num_states );
-        w->parts[l_part].values.nelts = w->parts[l_part].num_states;
     }
     traverse_comp_form_parts(list, w, round);
     form_level1_parts(w);
@@ -442,7 +442,8 @@ void create_ext_state_val_deps(world_t *w, int part_num, int l_state)
 {
     double *external_deps = NULL;
     val_t*** external_state_vals = NULL;
-    state_t *st = &(w->parts[part_num].states[l_state]);
+    int store_state_index = w->parts[part_num].states_ind[l_state];
+    state_t *st = &(w->all_states_store.states[store_state_index]);
     int a = 0;
     int nacts = st->num_actions;
     external_deps = (double *)malloc(sizeof(double) * nacts);
@@ -543,9 +544,12 @@ void copy_state_to_part(struct StateNode *state, world_t *w, int round)
 
     int part_num = w->state_to_partnum[state->comp_state_num];
     int state_index_curr_part = w->parts[part_num].cur_local_state++;
-    st_dest = &(w->parts[part_num].states[state_index_curr_part]);
+    w->parts[part_num].states_ind[state_index_curr_part] = state->comp_state_num;
+    
+    st_dest = &(w->all_states_store.states[state->comp_state_num]);
     st_dest->global_state_index = state->comp_state_num;
     st_dest->over_mdp_state_index = state->StateNo;     //Mainly for debugging.
+    st_dest->local_state_index = state_index_curr_part;
     
     //Copy all the actions from the state and all the possible next states for each action.
     tt_dest = (trans_t *)malloc( sizeof(trans_t) * state->num_actions );
@@ -612,7 +616,7 @@ void copy_state_to_part(struct StateNode *state, world_t *w, int round)
         st_dest->tps[action_num].ext_deps = ndeps - beg_dep;     //This is not correct. Need to separate int and ext deps.
         action_num++;
     }
-    w->parts[part_num].values.elts[state_index_curr_part] = state->fWeight;
+    w->all_states_store.values.elts[state->comp_state_num] = state->fWeight;
 }
 
 void initialize_partitions( world_t *w )
@@ -675,6 +679,8 @@ void resolve_ext_deps(world_t *w)
     int l_start_part, level1_start_part = 0, level1_end_part = 0;
     int g_end_state, l_end_part, l_end_state;
     int action, next_st_index, ext_dep_cnt;
+    
+    int store_state_index;
     trans_t *t;
     state_t *st;
     
@@ -683,7 +689,8 @@ void resolve_ext_deps(world_t *w)
         state_cnt = w->parts[ l_start_part ].num_states;        //Base states
         for ( l_start_state = 0; l_start_state < state_cnt; l_start_state++ )
         {
-            st = &( w->parts[ l_start_part ].states[ l_start_state ] );
+            store_state_index = w->parts[ l_start_part ].states_ind[ l_start_state ];
+            st = &( w->all_states_store.states[store_state_index] );
             for (action=0; action < st->num_actions; action++)
             {
                 t = &( st->tps[ action ] );
@@ -774,6 +781,8 @@ void cache_dependencies_in_states( world_t *w )
     int l_start_part;
     int g_end_state, l_end_part, l_end_state;
     int action, ext_dep, dep_cnt;
+    
+    int store_state_index;
     trans_t *t;
     state_t *st;
     
@@ -785,7 +794,8 @@ void cache_dependencies_in_states( world_t *w )
         state_cnt = w->parts[ l_start_part ].num_states;
         for ( l_start_state = 0; l_start_state < state_cnt; l_start_state++ )
         {
-            st = &( w->parts[ l_start_part ].states[ l_start_state ] );
+            store_state_index = w->parts[ l_start_part ].states_ind[ l_start_state ];
+            st = &( w->all_states_store.states[store_state_index] );
             for (action=0; action < st->num_actions; action++)
             {
                 t = &( st->tps[ action ] );
@@ -802,14 +812,16 @@ void cache_dependencies_in_states( world_t *w )
                             continue;
                         }
                         l_end_state = gsi_to_lsi(w, g_end_state);
+                        store_state_index = w->parts[l_start_part].states_ind[l_start_state];
                         add_cache_states(w, l_start_part, l_start_state, l_end_state, l_end_part,
-                                         w->parts[l_start_part].states[l_start_state].external_state_vals[action], ext_dep);
+                                         w->all_states_store.states[store_state_index].external_state_vals[action], ext_dep);
                     }
                     else //The external state is outside the world, so just cache its final value directly.
                     {
                         ext_global_mdp_state = (struct StateNode*)t->entries[ext_dep + t->int_deps].ext_st_ptr;
                         val_out_of_world_state = ext_global_mdp_state->fWeight;    //Final value of the state outside the world. ANUJ
-                        cache_val_state_out_of_world(w->parts[l_start_part].states[l_start_state].external_state_vals[action],
+                        store_state_index = w->parts[l_start_part].states_ind[l_start_state];
+                        cache_val_state_out_of_world(w->all_states_store.states[store_state_index].external_state_vals[action],
                                                      ext_dep, val_out_of_world_state);
                         
                     }
@@ -866,10 +878,12 @@ void translate_and_negate_all( world_t *w )
 void translate_to_local_matrix( world_t *w, int l_part )
 {
     int l_state, nacts, a, ndeps, i, tmp;
+    int store_state_index;
     state_t *st;
     
     for ( l_state=0; l_state < w->parts[l_part].num_states; l_state++ ) {
-        st = &( w->parts[ l_part ].states[ l_state ] );
+        store_state_index = w->parts[ l_part ].states_ind[ l_state ];
+        st = &( w->all_states_store.states[store_state_index] );
         nacts = st->num_actions;
         
         for ( a=0; a<nacts; a++ )
@@ -889,13 +903,15 @@ void translate_to_local_matrix( world_t *w, int l_part )
 void negate_matrix( world_t *w, int l_part )
 {
     int cnt, l_state, nd, nacts, a, i;
+    int store_state_index;
     state_t *st;
     
     cnt = w->parts[ l_part ].num_states;
     
     for ( l_state=0; l_state<cnt; l_state++ ) {
         
-        st = &( w->parts[ l_part ].states[ l_state ] );
+        store_state_index = w->parts[ l_part ].states_ind[ l_state ];
+        st = &( w->all_states_store.states[store_state_index] );
         nacts = st->num_actions;
         
         for ( a=0; a<nacts; a++ )

@@ -21,7 +21,7 @@
 
 #define GAUSS_CONST 2
 #define heat_epsilon_final_def 0.0001;
-#define heat_epsilon_initial_def 1000;
+#define heat_epsilon_initial_def 10000;
 
 
 double cache_aware_vi(struct StateListNode *list, int MaxIter, int round, int component_size);

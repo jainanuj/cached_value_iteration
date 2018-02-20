@@ -41,6 +41,6 @@ double reward_or_value( world_t *w, int l_part, int l_state, int a );
 double get_remainder( world_t *w, int l_part, int l_state, int action );
 double value_update_iters( world_t *w, int l_part, int l_state );
 double reward_or_value_iters( world_t *w, int l_part, int l_state, int a );
-double entries_vec_mult( entry_t *et, int cnt, vec_t *b );
+double entries_vec_mult( entry_t *et, int cnt, int *indexes, vec_t *b );
 
 #endif /* cached_vi_h */

@@ -92,6 +92,8 @@ double value_iterate_partition( world_t *w, int l_part )
     med_hash_t *dep_part_hash;
     int numPartitionIters = 0;
     
+    int store_state_index;
+    
     int g_end_ext_partition, l_end_ext_state, index1 = 0, index2 = 0;
     val_t *val_state_action;
     /*   FILE *fp; */
@@ -107,7 +109,8 @@ double value_iterate_partition( world_t *w, int l_part )
     while ( med_hash_hash_iterate( dep_part_hash, &index1, &index2,
                                   &g_end_ext_partition, &l_end_ext_state, &val_state_action ))
     {
-        val_state_action->d = w->parts[g_end_ext_partition].values.elts[l_end_ext_state]; //Setting the value of that ext state
+        store_state_index = w->parts[g_end_ext_partition].states_ind[l_end_ext_state];
+        val_state_action->d = w->all_states_store.values.elts[store_state_index]; //Setting the value of that ext state
     }
     max_heat = 0;
     //First iteration of the partition.
@@ -115,7 +118,8 @@ double value_iterate_partition( world_t *w, int l_part )
     {
         l_state = i;                            //pp->variable_ordering[i];
         delta = 0;
-        if ( (w->parts[l_part].states[l_state].Terminal != 1) && (w->parts[l_part].states[l_state].Terminal !=5) )
+        store_state_index = w->parts[l_part].states_ind[l_state];
+        if ( (w->all_states_store.states[store_state_index].Terminal != 1) && (w->all_states_store.states[store_state_index].Terminal !=5) )
             delta = value_update( w, l_part, l_state );
         max_heat = fabs( delta ) > max_heat ? fabs( delta ): max_heat;
     }
@@ -134,7 +138,8 @@ double value_iterate_partition( world_t *w, int l_part )
             {
                 l_state = i;                //pp->variable_ordering[i];
                 delta = 0;
-                if ( (w->parts[l_part].states[l_state].Terminal != 1) && (w->parts[l_part].states[l_state].Terminal !=5) )
+                store_state_index = w->parts[l_part].states_ind[l_state];
+                if ( (w->all_states_store.states[store_state_index].Terminal != 1) && (w->all_states_store.states[store_state_index].Terminal !=5) )
                     delta = value_update_iters( w, l_part, l_state );
                 part_internal_heat = fabs( delta ) > part_internal_heat ? fabs( delta ): part_internal_heat;
             }
@@ -235,18 +240,20 @@ int set_dirty(world_t *w, int l_part)
 double value_update( world_t *w, int l_part, int l_state )
 {
     int action, min_action, nacts;      // max_action
+    int store_state_index;
     double tmp, min_value, cval;  //max_value
     
-    if (w->parts[l_part].states[l_state].goal == 1)
+    store_state_index = w->parts[l_part].states_ind[l_state];
+    if (w->all_states_store.states[store_state_index].goal == 1)
         return 0;
     
-    cval = w->parts[ l_part ].values.elts[ l_state ];
+    cval = w->all_states_store.values.elts[store_state_index];
     
     min_action = 0;
     min_value = reward_or_value( w, l_part, l_state, 0 );
     
     /* remember that there is an action bias! */
-    nacts = w->parts[ l_part ].states[ l_state ].num_actions;
+    nacts = w->all_states_store.states[store_state_index].num_actions;
     for (action=1; action<nacts; action++)
     {
         tmp = reward_or_value( w, l_part, l_state, action );
@@ -255,13 +262,13 @@ double value_update( world_t *w, int l_part, int l_state )
             min_action = action;
         }
     }
-    w->parts[l_part].states[l_state].bestAction = min_action;       //update best Action for this state.
+    w->all_states_store.states[store_state_index].bestAction = min_action;       //update best Action for this state.
     //Commenting Out - ANUJ - max_value can be -ve. This is when we have a cost to pay for the action.
     //  if ( max_value < 0 ) {
     //    fprintf( stderr, "WARGH!\n" );
     //    exit( 0 );
     //  }
-    w->parts[ l_part ].values.elts[ l_state ] = min_value;       //Update the V(s) for this state.
+    w->all_states_store.values.elts[store_state_index] = min_value;       //Update the V(s) for this state.
     w->num_value_updates++;
     if (cval < min_value)
         return min_value - cval;
@@ -271,12 +278,16 @@ double value_update( world_t *w, int l_part, int l_state )
 double reward_or_value( world_t *w, int l_part, int l_state, int a ) {
     double value, tmp;
     state_t *st;
-    st = &( w->parts[ l_part ].states[ l_state ] );
+    int store_state_index;
+    
+    store_state_index = w->parts[ l_part ].states_ind[ l_state ];
+    st = &( w->all_states_store.states[store_state_index] );
     
     /* compute the internal values */
     value = entries_vec_mult( st->tps[ a ].entries,
                              st->tps[ a ].int_deps,
-                             &(w->parts[ l_part ].values) );
+                             w->parts[l_part].states_ind,
+                             &(w->all_states_store.values) );
     
     /* add in external deps! */
     
@@ -297,15 +308,17 @@ double get_remainder( world_t *w, int l_part, int l_state, int action ) {
     trans_t *tt;
     entry_t *ext_et;
     double val_hash2;
+    int store_state_index;
     
     val_hash2 = 0;
-    tt = &( w->parts[ l_part ].states[ l_state ].tps[ action ] );
+    store_state_index = w->parts[ l_part ].states_ind[ l_state ];
+    tt = &( w->all_states_store.states[store_state_index].tps[ action ] );
     dep_cnt = tt->ext_deps;
     ext_et = &( tt->entries[ tt->int_deps ] );    //* point to the first external entry
     
     for ( i=0; i<dep_cnt; i++ )
     {
-        val_hash2 += ext_et[ i ].entry * (w->parts[l_part].states[l_state].external_state_vals[action][i]->d);
+        val_hash2 += ext_et[ i ].entry * (w->all_states_store.states[store_state_index].external_state_vals[action][i]->d);
 #ifdef __TEST__
         if  (ext_et[ i ].col == -1)
         {
@@ -324,14 +337,17 @@ double value_update_iters( world_t *w, int l_part, int l_state )
 {
     int action, min_action, nacts;     //max_action,
     double tmp, min_value, cval;        //max_value,
+    int store_state_index;
     
-    cval = w->parts[ l_part ].values.elts[ l_state ];
+    store_state_index = w->parts[ l_part ].states_ind[ l_state];
+    cval = w->all_states_store.values.elts[store_state_index];
+    
     
     min_action = 0;
     min_value = reward_or_value_iters( w, l_part, l_state, 0 );     //ANUJ - Calling the iters version.
     
     /* remember that there is an action bias! */
-    nacts = w->parts[ l_part ].states[ l_state ].num_actions;
+    nacts = w->all_states_store.states[store_state_index].num_actions;
     for (action=1; action<nacts; action++) {
         tmp = reward_or_value_iters( w, l_part, l_state, action );
         if ( tmp < min_value ) {
@@ -344,7 +360,7 @@ double value_update_iters( world_t *w, int l_part, int l_state )
 //        exit( 0 );
 //    }
     
-    w->parts[ l_part ].values.elts[ l_state ] = min_value;       //Update the V(s,a) for this state.
+    w->all_states_store.values.elts[store_state_index] = min_value;       //Update the V(s,a) for this state.
     w->num_value_updates_iters++;
     
     if (cval < min_value)
@@ -356,12 +372,16 @@ double reward_or_value_iters( world_t *w, int l_part, int l_state, int a )
 {
     double value;//, tmp;
     state_t *st;
-    st = &( w->parts[ l_part ].states[ l_state ] );
+    int store_state_index;
+    
+    store_state_index = w->parts[ l_part ].states_ind[ l_state ];
+    st = &( w->all_states_store.states[store_state_index] );
     
     /* compute the internal values */
     value = entries_vec_mult( st->tps[ a ].entries,
                              st->tps[ a ].int_deps,
-                             &(w->parts[ l_part ].values) );
+                             w->parts[ l_part ].states_ind,
+                             &(w->all_states_store.values) );
     /*#error This needs to grok the global vs. local state distinction.  Wow.  How could it possibly not do that??? */
     value += st->external_dep_vals[a];      //External deps
     
@@ -371,14 +391,16 @@ double reward_or_value_iters( world_t *w, int l_part, int l_state, int a )
     return value;
 }
 
-double entries_vec_mult( entry_t *et, int cnt, vec_t *b )
+double entries_vec_mult( entry_t *et, int cnt, int *indexes, vec_t *b )
 {
     int j;
+    int ind;
     double tmpr;
     
     tmpr = 0;
     for ( j=0; j<cnt; j++ ) {
-        tmpr += et[j].entry * b->elts[et[j].col];
+        ind = indexes[et[j].col];
+        tmpr += et[j].entry * b->elts[ind];
     }
     
     return tmpr;
