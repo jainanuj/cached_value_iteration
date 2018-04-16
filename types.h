@@ -10,8 +10,9 @@
 #define types_h
 #include "med_hash.h"
 #include "intqueue.h"
+#include "intheap.h"
 
-#define PART_SIZE 1000000       //3
+#define PART_SIZE 5000       //3
 #define ARR_SIZE  1000000
 #define NUM_PARTS_IN_LEVEL1 5
 
@@ -47,7 +48,7 @@ typedef struct state {
     unsigned char num_reverse_actions;
     unsigned char current_rev_action;
     double *external_dep_vals;       //array for storing aggregate of all extrnal states to this state for each possible action.
-    val_t ***external_state_vals;     //Pointer to value of external state stored in the partition.
+    val_t ***external_state_vals;     //Pointer to value of external state stored in the partition. This points to state values cached with partition's ext_parts_states.
     int bestAction;
     int Terminal;
     int goal;
@@ -70,6 +71,12 @@ typedef struct part_t {
     /* we only use this variable while loading the MDP */
     int cur_local_state;
     int *variable_ordering;
+    /* this partition has heat links to several other partitions.
+     we don't distinguish between local and foreign here.
+     this is just a map from integers (which are partition numbers)
+     to prec_ts (which are the heats). */
+    med_hash_t *heat_links;
+
     /* this is the matrix stuff we use */
     vec_t values;
     vec_t *rhs;
@@ -80,7 +87,7 @@ typedef struct part_t {
     /* this hash collects all of the partitions (LOCAL ONLY) that depend
      on this partition.  this hash maps partition numbers to hashes. */
     med_hash_t *my_local_dependents;
-    med_hash_t *my_ext_parts_states;
+    med_hash_t *my_ext_parts_states;        //At the beginning of the iteration we go through all these ext parts and states within them and cache their values as the value doesn't change during iteration.
     med_hash_t *my_global_dependents;
     /* for visualization stuff */
 //    char marked;
@@ -102,6 +109,7 @@ typedef struct world_t {
     
     part_t *parts;
     level1_part_t   *level1_parts;
+    heap *part_heap;
     queue *part_queue;
     queue *part_level1_queue;
     bit_queue *part_level0_bit_queue;

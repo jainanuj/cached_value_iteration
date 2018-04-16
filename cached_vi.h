@@ -43,4 +43,18 @@ double value_update_iters( world_t *w, int l_part, int l_state );
 double reward_or_value_iters( world_t *w, int l_part, int l_state, int a );
 double entries_vec_mult( entry_t *et, int cnt, vec_t *b );
 
+float part_heat( world_t *w, int l_part_num );
+void update_partition_potentials( world_t *w, int l_part_changed, double heat_left );
+void compute_part_heat( world_t *w, int l_part_num );
+void clear_partition_heat( world_t *w, int l_part_num );
+void update_part_heat( world_t *w, int l_part_num, double heat_left);
+void solve_using_prioritized_vi( world_t *w, double epsilon_partition, double epsilon_overall );
+int pick_part_and_wash_it( world_t *w );
+int pick_partition( world_t *w );
+double get_remainder_no_cache( world_t *w, int l_part, int l_state, int action );
+double reward_or_value_no_cache( world_t *w, int l_part, int l_state, int a );
+double get_heat( world_t *w, int l_part, int l_state );
+
+
+
 #endif /* cached_vi_h */

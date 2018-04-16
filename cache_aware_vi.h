@@ -9,7 +9,6 @@
 #ifndef cache_aware_vi_h
 #define cache_aware_vi_h
 
-//#define __TEST__
 
 
 #include <sys/stat.h>
@@ -18,9 +17,10 @@
 #include "graph.h"
 #include "cached_vi.h"
 #include "logger.h"
+#include "intheap.h"
 
 #define GAUSS_CONST 2
-#define heat_epsilon_final_def 0.0001;
+#define heat_epsilon_final_def 0.000001;
 #define heat_epsilon_initial_def 1000;
 
 
@@ -40,7 +40,7 @@ void resolve_ext_deps(world_t *w);
 void cache_dependencies_in_states( world_t *w );
 
 void add_dep( world_t *w,
-             int l_start_part, int l_end_part, int level1_start_part, int level1_end_part );
+             int l_start_part, int l_start_state, int l_end_part, int level1_start_part, int level1_end_part );
 
 void add_part_ext_dep_states( world_t *w,
                              int l_start_part,
@@ -70,12 +70,17 @@ void negate_matrix( world_t *w, int l_part );
 double gauss(double x);
 double linear(double x);
 
-#ifdef __TEST__
-int lsi_to_gsi_over_mdp(world_t *w, int l_part, int state_index);
-void print_back_mdp(world_t *w, char *verify_mdp);
-int state_index_to_over_mdp_index(world_t *w, int state_index);
-void print_back_list(struct StateListNode *list, int component_size, char *verify_list);
-void print_back_deps(world_t *w, char *verify_deps);
-#endif
+int part_cmp_func( int lp_a, int lp_b, void *vw );
+void part_swap_func( int lp_a, int lp_b, void *vw );
+void part_add_func( int lp_obj, int pos, void *vw );
+void init_part_heap( world_t *w );
+
+void compute_initial_partition_priorities( world_t *w );
+void reorder_states_within_partitions( world_t *w );
+void reorder_states_within_partition( world_t *w, int l_part );
+void reorder_no_reorder( world_t *w, int l_part );
+
+void save_resulting_vector( world_t *w, char *fn, int r, int component_size);
+void save_resulting_list(struct StateListNode *list, char *fn, int r, int component_size);
 
 #endif /* cache_aware_vi_h */
