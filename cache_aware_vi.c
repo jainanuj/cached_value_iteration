@@ -63,7 +63,15 @@ double cache_aware_vi(struct StateListNode *list, int MaxIter, int round, int co
     
     epsilon_partition = heat_epsilon_final; //heat_epsilon_initial;
     epsilon_overall = heat_epsilon_final;
-    solve_using_prioritized_vi( w, epsilon_partition, epsilon_overall );
+    init_level1_part_queue(w);
+    init_level0_bit_queue(w);
+    retVal = value_iterate(w, epsilon_partition, epsilon_overall);
+
+/*    init_level1_part_queue(w);
+    init_level0_bit_queue(w);
+    retVal = value_iterate(w, epsilon_partition, epsilon_overall);
+*/
+//    solve_using_prioritized_vi( w, epsilon_partition, epsilon_overall );
     wlog(1, "Number of Backups for round-%d with ep_part=%6f, ep_overall=%6f:\t%lu\n", round, epsilon_partition, epsilon_overall, w->num_value_updates + w->num_value_updates_iters);
     
 /*    while (epsilon_overall > heat_epsilon_final)

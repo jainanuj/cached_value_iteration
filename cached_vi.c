@@ -10,8 +10,8 @@
 
 double heat_epsilon_partition;
 double heat_epsilon_overall;
-/*
-double value_iterate( world_t *w, double heat_epsilon_current )
+
+/*double value_iterate( world_t *w, double heat_epsilon_current )
 {
     int   level1_part;
     double tmp =0; //maxheat
@@ -318,7 +318,7 @@ double value_iterate_level1_partition( world_t *w, int level1_part )
             add_level0_partition_deps_for_eval(w, next_level0_part);
             if (w->part_queue->numitems > w->level1_parts[level1_part].num_sub_parts )
                 wlog(1, "storing too many items in level0 q. NumItems = %d\n",w->part_queue->numitems);
-            maxheat = tmp;
+            maxheat = tmp>maxheat ? tmp: maxheat;
         }
     }
     return maxheat;
@@ -360,7 +360,6 @@ double value_iterate_partition( world_t *w, int l_part )
         max_heat = fabs( delta ) > max_heat ? fabs( delta ): max_heat;
     }
     
-    part_internal_heat = max_heat;
     if (max_heat > heat_epsilon_partition)
     {
         //This is equivalent to while(true) as we don't change max_heat in the while loop.
@@ -382,6 +381,8 @@ double value_iterate_partition( world_t *w, int l_part )
             }
             w->parts[ l_part ].washes++;
             numPartitionIters++;
+            if (part_internal_heat > max_heat)
+                max_heat = part_internal_heat;
             if (part_internal_heat < heat_epsilon_partition) //excluding (numPartitionIters > MAX_ITERS_PP) ||
             {
                 //if (numPartitionIters > 1)
@@ -391,7 +392,7 @@ double value_iterate_partition( world_t *w, int l_part )
             }
         }
     }
-    return part_internal_heat;
+    return max_heat;
 }
 
 int level1_part_available_to_process(world_t *w)
@@ -477,7 +478,7 @@ int set_dirty(world_t *w, int l_part)
 double value_update( world_t *w, int l_part, int l_state )
 {
     int action, min_action, nacts;      // max_action
-    double tmp, min_value, cval;  //max_value
+    double tmp, value, cval;  //max_value
     
     if (w->parts[l_part].states[l_state].goal == 1)
         return 0;
@@ -485,15 +486,15 @@ double value_update( world_t *w, int l_part, int l_state )
     cval = w->parts[ l_part ].values.elts[ l_state ];
     
     min_action = 0;
-    min_value = reward_or_value( w, l_part, l_state, 0 );
+    value = reward_or_value( w, l_part, l_state, 0 );
     
     /* remember that there is an action bias! */
     nacts = w->parts[ l_part ].states[ l_state ].num_actions;
     for (action=1; action<nacts; action++)
     {
         tmp = reward_or_value( w, l_part, l_state, action );
-        if ( tmp < min_value ) {
-            min_value = tmp;
+        if ( tmp < value ) {            //minimization <
+            value = tmp;
             min_action = action;
         }
     }
@@ -503,13 +504,13 @@ double value_update( world_t *w, int l_part, int l_state )
     //    fprintf( stderr, "WARGH!\n" );
     //    exit( 0 );
     //  }
-    w->parts[ l_part ].values.elts[ l_state ] = min_value;       //Update the V(s) for this state.
+    w->parts[ l_part ].values.elts[ l_state ] = value;       //Update the V(s) for this state.
     w->num_value_updates++;
-    if (min_value <= cval)
-        return cval - min_value;
+    if (value <= cval)
+        return cval - value;
     else
     {
-        return min_value - cval;
+        return value - cval;
     }
     
 }
@@ -626,7 +627,7 @@ double get_remainder_no_cache( world_t *w, int l_part, int l_state, int action )
 double value_update_iters( world_t *w, int l_part, int l_state )
 {
     int action, min_action, nacts;     //max_action,
-    double tmp, min_value, cval;        //max_value,
+    double tmp, value, cval;        //max_value,
     
     if (w->parts[l_part].states[l_state].goal == 1)
         return 0;
@@ -634,14 +635,14 @@ double value_update_iters( world_t *w, int l_part, int l_state )
     cval = w->parts[ l_part ].values.elts[ l_state ];
     
     min_action = 0;
-    min_value = reward_or_value_iters( w, l_part, l_state, 0 );     //ANUJ - Calling the iters version.
+    value = reward_or_value_iters( w, l_part, l_state, 0 );     //ANUJ - Calling the iters version.
     
     /* remember that there is an action bias! */
     nacts = w->parts[ l_part ].states[ l_state ].num_actions;
     for (action=1; action<nacts; action++) {
         tmp = reward_or_value_iters( w, l_part, l_state, action );
-        if ( tmp < min_value ) {
-            min_value = tmp;
+        if ( tmp < value ) {            // < minimization
+            value = tmp;
             min_action = action;
         }
     }
@@ -650,14 +651,14 @@ double value_update_iters( world_t *w, int l_part, int l_state )
 //        exit( 0 );
 //    }
     
-    w->parts[ l_part ].values.elts[ l_state ] = min_value;       //Update the V(s,a) for this state.
+    w->parts[ l_part ].values.elts[ l_state ] = value;       //Update the V(s,a) for this state.
     w->num_value_updates_iters++;
     
-    if (min_value <= cval)
-        return cval - min_value;
+    if (value <= cval)
+        return cval - value;
     else
     {
-        return min_value - cval;
+        return value - cval;
     }
 }
 
@@ -704,15 +705,15 @@ double get_heat( world_t *w, int l_part, int l_state ) {
     heat = 0;
     cur = w->parts[ l_part ].values.elts[ l_state ];
     could_be = reward_or_value_no_cache( w, l_part, l_state, 0 );
-    if (could_be < cur)
-        heat = cur - could_be;
+    if (could_be < cur)         // < for minimization
+        heat = cur - could_be;      // cur - could_be for minimization
     
     nacts = w->parts[ l_part ].states[ l_state ].num_actions;
     for ( action=1; action<nacts; action++ ) {
         tmp = 0;
         could_be = reward_or_value_no_cache( w, l_part, l_state, action );
-        if (could_be < cur)
-            tmp = cur - could_be;
+        if (could_be < cur)         // < for minimization
+            tmp = cur - could_be;       // cur - could_be for minimization
         heat = tmp>heat?tmp:heat;
     }
     
