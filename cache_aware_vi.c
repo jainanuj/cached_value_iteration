@@ -169,6 +169,7 @@ world_t *init_world(struct StateListNode *list, int component_size, int round)
     
     if (component_size % PART_SIZE > 0)
         w->num_global_parts += 1;
+    w->num_global_parts += 1;
     
     w->parts = (part_t *)malloc( sizeof(part_t) * w->num_global_parts );
     if ( w->parts == NULL ) {
@@ -209,7 +210,7 @@ world_t *init_world(struct StateListNode *list, int component_size, int round)
     //Create all the queues needed to mantain states/parts/level1 parts to be processed during VI.
     
     //Number of parts in each level1 part. //Two params are number of items and the max value of the item.
-    w->part_queue = queue_create(w->num_global_parts/w->num_level1_parts + 1, w->num_global_parts);
+    w->part_queue = queue_create(NUM_PARTS_IN_LEVEL1 + 1, w->num_global_parts);
     if ( w->part_queue == NULL ) {
         wlog( 1, "Error creating queue!\n" );
         exit( 0 );
