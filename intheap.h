@@ -36,7 +36,7 @@ void heap_dump( heap *h );
 
 int heap_verify(  heap *h );
 
-inline void swap( heap *h, int a, int b );
+//inline void swap( heap *h, int a, int b );
 int bubble_up( heap *h, int pos );
 int bubble_down( heap *h, int pos );
 int heap_clear(heap *h);

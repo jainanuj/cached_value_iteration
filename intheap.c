@@ -5,6 +5,8 @@
 // ----------------------------------------------------------------------------
 //
 
+void swap( heap *h, int a, int b );
+
 heap *heap_create( int maxitems, compare_t comparefunc, swap_t swapfunc,
 		   add_t addfunc, void *userdata ) {
   heap *h;
