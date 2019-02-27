@@ -1,0 +1,55 @@
+  CreateHeuristic(); 
+
+  list = (struct StateList*)CreateList(gNumStates + 1);
+  inQueue = (int*)malloc((gNumStates + 1) * sizeof(int));
+  for (state = 0; state <= gNumStates; state++) {
+    inQueue[state] = 0;
+  }
+  firstBackup = 1;
+  AppendState(list, Goal->StateNo);
+  while (!IsEmptyList(list)) { 
+    state = OutList(list);
+    if (state >= 0) {
+      node = StateIndex[state];
+      inQueue[state] = 0;
+    }
+    else {
+      node = Start;
+      inQueue[gNumStates] = 0;
+    }    
+    residual = Backup(node);
+    if (firstBackup) {
+      firstBackup = 0;
+      residual = 1.0;
+    }
+    if (residual > gEpsilon) {
+      predecessorActions = node->BestPrevActions;
+      //predecessorActions = node->PrevAction;
+      /*while (predecessorActions) {
+        predecessorAction = predecessorActions->Node;
+        predecessor = predecessorAction->PrevState;
+        state = predecessor->StateNo;
+        if (state >= 0) {
+          if (!inQueue[state]) {
+            AppendState(list, state);
+            inQueue[state] = 1;
+          }
+        }
+        else {
+          if (!inQueue[gNumStates]) {
+            AppendState(list, state);
+            inQueue[gNumStates] = 1;
+          }
+        }
+        predecessorActions = predecessorActions->Next;
+      }*/
+    while (predecessorActions) {
+      predecessorAction = predecessorActions->Node;
+      predecessor = predecessorAction->PrevState;
+      state = predecessor->StateNo;
+        AppendState(list, state);
+      predecessorActions = predecessorActions->Next;
+    }
+    }
+  }
+

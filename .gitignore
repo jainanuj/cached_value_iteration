@@ -1,0 +1,4 @@
+# everything here is ignored by git
+results/
+*.dSYM
+queuetester
