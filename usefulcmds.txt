@@ -1,0 +1,9 @@
+free //RAM info
+free -m 	//RAM info in MBs
+cat /proc/meminfo	RAM info detailed
+
+uname [-a, -m, -n, -v, -r]		//OS info
+
+lscpu		//CPU info with Cache info etc
+
+https://www.tecmint.com/commands-to-collect-system-and-hardware-information-in-linux/
