@@ -7,3 +7,6 @@ uname [-a, -m, -n, -v, -r]		//OS info
 lscpu		//CPU info with Cache info etc
 
 https://www.tecmint.com/commands-to-collect-system-and-hardware-information-in-linux/
+cat /etc/*release  //Flavor of linux version etc.
+
+https://github.com/circulosmeos/gdown.pl   //code for downloading files from google drive.

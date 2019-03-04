@@ -222,7 +222,7 @@ static void accplaning(int version)
     
 }
 
-void checkSuccs(struct StateNode* node)
+/*void checkSuccs(struct StateNode* node)
 {
     for (struct ActionListNode* aList = node->Action; aList; aList = aList->Next)
     {
@@ -238,7 +238,7 @@ void checkSuccs(struct StateNode* node)
                aNode->ActionNo, numSuccs);
         }
     }
-}
+}*/
 
 static void expandsolution(struct StateNode* node)
 {
