@@ -311,6 +311,7 @@ double value_iterate_level1_partition( world_t *w, int level1_part )
     {
         next_level0_part = get_next_part(w);
         tmp = value_iterate_partition(w, next_level0_part);
+        w->new_partition_wash++;
         w->parts[next_level0_part].washes++;
         if (tmp > heat_epsilon_overall)
         {

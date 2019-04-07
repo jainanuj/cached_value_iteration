@@ -33,6 +33,7 @@ void bfs_list_to_parts(struct StateListNode *list, world_t *w);
 void create_ext_state_val_deps(world_t *w, int part_num, int l_state);
 void copy_state_to_part(struct StateNode *state, world_t *w, int round);
 void assign_state_to_part_num(struct StateListNode *list, world_t *w);
+void assign_state_to_part_cluster(struct StateListNode *list, world_t *w, int round);
 void form_level1_parts(world_t *w);
 void assign_part_to_level1_part(world_t *w);
 

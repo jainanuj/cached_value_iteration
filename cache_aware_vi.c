@@ -7,6 +7,9 @@
 //
 
 #include "cache_aware_vi.h"
+#include <time.h>
+#include <sys/time.h>
+
 
 double heat_epsilon_final = heat_epsilon_final_def;
 double heat_epsilon_initial = heat_epsilon_initial_def;
@@ -20,7 +23,8 @@ double cache_aware_vi(struct StateListNode *list, int MaxIter, int round, int co
     float iter_count = 0;
     unsigned long total_updates = 0, total_updates_iters = 0;
     
-    double epsilon_partition, epsilon_overall;
+    double epsilon_partition, epsilon_overall, time;
+    clock_t compStartTime;
     
     open_logfile_stdout();
     //This will partition the list into parts (or 2 level parts) and coplete value Iteration.
@@ -59,13 +63,17 @@ double cache_aware_vi(struct StateListNode *list, int MaxIter, int round, int co
     solve_using_prioritized_vi( w, epsilon_partition, epsilon_overall );
     wlog(1, "Number of Backups for round-%d with ep_part=%6f, ep_overall=%6f:\t%lu\n", round, epsilon_partition, epsilon_overall, w->num_value_updates + w->num_value_updates_iters);
  */
-    w->num_value_updates = 0; w->num_value_updates_iters = 0;
+    w->num_value_updates = 0; w->num_value_updates_iters = 0; w->new_partition_wash = 0;
     
     epsilon_partition = heat_epsilon_final; //heat_epsilon_initial;
     epsilon_overall = heat_epsilon_final;
     init_level1_part_queue(w);
     init_level0_bit_queue(w);
+    
+    compStartTime = clock();
     retVal = value_iterate(w, epsilon_partition, epsilon_overall);
+    time = (float)(clock()-compStartTime)/CLOCKS_PER_SEC;
+    printf("Actual Value_iterate function in: %f secs\n", time);
 
 /*    init_level1_part_queue(w);
     init_level0_bit_queue(w);
@@ -73,6 +81,7 @@ double cache_aware_vi(struct StateListNode *list, int MaxIter, int round, int co
 */
 //    solve_using_prioritized_vi( w, epsilon_partition, epsilon_overall );
     wlog(1, "Number of Backups for round-%d with ep_part=%6f, ep_overall=%6f:\t%lu\n", round, epsilon_partition, epsilon_overall, w->num_value_updates + w->num_value_updates_iters);
+    wlog(1, "Number of new partition washes=%lu, number of updates =%lu, number of update_iters=%lu\n", w->new_partition_wash, w->num_value_updates, w->num_value_updates_iters);
     
 /*    while (epsilon_overall > heat_epsilon_final)
     {
@@ -161,11 +170,14 @@ double gauss(double x)
 world_t *init_world(struct StateListNode *list, int component_size, int round)
 {
     world_t *w;
-    int l_part;
+    int l_part, st_index;
+    
+    clock_t     compStartTime = 0;
+    double time = 0;
     //Define Threshold sizes for partitions.
     w = (world_t *)malloc( sizeof( world_t ) );
     w->num_global_states = component_size;
-    w->num_global_parts = (component_size/PART_SIZE);
+    w->num_global_parts = component_size/(int)PART_SIZE;
     
     if (component_size % PART_SIZE > 0)
         w->num_global_parts += 1;
@@ -183,14 +195,22 @@ world_t *init_world(struct StateListNode *list, int component_size, int round)
         wlog( 1, "Error allocating state_to_partnum!\n" );
         exit( 0 );
     }
+    for (st_index = 0; st_index < w->num_global_states; st_index++)
+    {
+        w->state_to_partnum[st_index] = -1;         //Initialize states to a non-existent part
+    }
     
     w->gsi_to_lsi = (int *)malloc( sizeof(int) * w->num_global_states );
     if ( w->gsi_to_lsi == NULL ) {
         wlog( 1, "Error allocating gsi_to_lsi!\n" );
         exit( 0 );
     }
-    assign_state_to_part_num(list, w);
     
+    compStartTime = clock();
+    assign_state_to_part_num(list, w);
+    //assign_state_to_part_cluster(list, w, round);
+    time = (float)(clock()-compStartTime)/CLOCKS_PER_SEC;
+    printf("Partitioned in: %f secs\n", time);
     
     for (l_part = 0; l_part < w->num_global_parts; l_part++)
     {
@@ -320,6 +340,94 @@ void assign_state_to_part_num(struct StateListNode *list, world_t *w)
     }
 }
 
+
+ void assign_state_to_part_cluster(struct StateListNode *list, world_t *w, int round)
+ {
+     struct StateNode *state = NULL;
+     struct StateListNode     *stateListNode;
+     int part_num = 0;
+     int comp_state_num = 0, cur_state, it_present;
+     queue* states_queue;
+     struct StateNode **states_array;
+     int states_in_cur_part = 0;
+     struct ActionListNode *actionListNode = NULL;
+     struct ActionNode *actionNode = NULL;
+     struct StateDistribution *nextState = NULL;
+
+ 
+     states_array = (struct StateNode **)malloc( sizeof(struct StateNode *) * w->num_global_states);
+     comp_state_num = 0;
+     for (stateListNode = list; stateListNode && stateListNode->Node; stateListNode = stateListNode->Next)
+     {
+         state = stateListNode->Node;
+         state->comp_state_num = comp_state_num++;       //Assigning index to state in comp. starting at index 0
+         states_array[state->comp_state_num] = state;
+     }
+     states_queue = queue_create(w->num_global_states, w->num_global_states);
+     
+     //Initialize number of states in each partition.
+     part_num = 0; states_in_cur_part = 0;
+     
+     for (stateListNode = list; stateListNode && stateListNode->Node; stateListNode = stateListNode->Next)
+     {
+         state = stateListNode->Node;
+         comp_state_num = state->comp_state_num;       //Get index of the state.
+         if (w->state_to_partnum[comp_state_num] != -1)     //State already assigned to some part.
+             continue;
+         queue_add(states_queue, comp_state_num);
+         //w->parts[part_num].num_states = 0;             //This doesn't seem right. The num_states is initialized when allocated.
+         while (queue_has_items(states_queue) && states_in_cur_part < PART_SIZE)
+         {
+             it_present = queue_pop(states_queue, &cur_state);
+             w->state_to_partnum[cur_state] = part_num;     //Assign this state number to current partition.
+             states_in_cur_part++;
+             w->parts[part_num].num_states++;
+
+             if (states_in_cur_part < PART_SIZE)        //Look at neighbors only if partition is not yet full.
+             {
+                 state = states_array[cur_state];       //retreive the state just assigned to this part and visit nbrs
+                 //Visit Neighbors and add all neighbors to the queue.
+                 for (actionListNode = state->Action; actionListNode; actionListNode = actionListNode->Next)
+                 {
+                     actionNode = actionListNode->Node;
+                     //validate_actionNode(actionNode);
+                     if (actionNode->Dominated == 1)
+                         continue;
+                     for (nextState = actionNode->NextState; nextState; nextState = nextState->Next)
+                     {
+                         if (nextState != NULL)
+                         {
+                             if (nextState->State->component_id == round)   //Looking at nbrs only in the same SCC.
+                             {
+                                 comp_state_num = nextState->State->comp_state_num;
+                                 if (comp_state_num >= w->num_global_states || comp_state_num < 0)
+                                 {
+                                     printf("\nBad Error!!!!. compStateNum is somehow not in SCC size.\n");
+                                     printf("Happening with State: %d\n", actionNode->StateNo);
+                                     exit(1);
+                                 }
+                                 else if (w->state_to_partnum[comp_state_num] == -1)      //Only adding those nbrs to the q that have not been assigned already
+                                 {
+                                     queue_add(states_queue, comp_state_num);
+                                 }  //end else if - nbr was not yet assigned to part.
+                             }      //Nbr in same scc
+                         }  //end if - Nbr was not null.
+                     }      //end for all possible transitions for this action
+                 }  //end for all possible actions for this state.
+             }   //End if - Look at neighbors only if partition is not yet full.
+         }      //End while
+         if (states_in_cur_part == PART_SIZE)       //The partition is full to its capacity so now new partitoin will start filling up.
+         {
+             empty_queue(states_queue);     //Empty the queue as no more states can be added to the partition just filled up.
+             part_num++;        //Now we will start filling up next partition.
+             states_in_cur_part = 0;        //Initialize number of states in next partition.
+         }
+         
+     }      //End for statelist.
+     free(states_array);
+     //destroy states_queue. Implement the destroy function in queue.
+ }
+
 void assign_part_to_level1_part(world_t *w)
 {
     int num_part = 0, curr_part;
@@ -377,6 +485,7 @@ void copy_state_to_part(struct StateNode *state, world_t *w, int round)
     int state_index_curr_part = w->parts[part_num].cur_local_state++;
     st_dest = &(w->parts[part_num].states[state_index_curr_part]);
     st_dest->global_state_index = state->comp_state_num;
+    w->gsi_to_lsi[state->comp_state_num] = state_index_curr_part;
     st_dest->over_mdp_state_index = state->StateNo;     //Mainly for debugging.
     
     //Copy all the actions from the state and all the possible next states for each action.

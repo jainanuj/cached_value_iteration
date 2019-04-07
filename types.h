@@ -12,9 +12,9 @@
 #include "intqueue.h"
 #include "intheap.h"
 
-#define PART_SIZE  6100       //3
+#define PART_SIZE  5000//6100       //3
 #define ARR_SIZE  1000000
-#define NUM_PARTS_IN_LEVEL1 600
+#define NUM_PARTS_IN_LEVEL1 700
 
 
 typedef struct vec_t {
@@ -120,6 +120,7 @@ typedef struct world_t {
     int cur_part_sorting;
     unsigned long num_value_updates;
     unsigned long num_value_updates_iters;      //Counter for all cached updates.
+    unsigned long new_partition_wash;
     
     /* this is the number of partitions that we've processed. */
     int parts_processed;
