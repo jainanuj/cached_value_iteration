@@ -64,6 +64,7 @@ double cache_aware_vi(struct StateListNode *list, int MaxIter, int round, int co
     wlog(1, "Number of Backups for round-%d with ep_part=%6f, ep_overall=%6f:\t%lu\n", round, epsilon_partition, epsilon_overall, w->num_value_updates + w->num_value_updates_iters);
  */
     w->num_value_updates = 0; w->num_value_updates_iters = 0; w->new_partition_wash = 0;
+    w->val_update_time = 0; w->val_update_iters_time = 0;
     
     epsilon_partition = heat_epsilon_final; //heat_epsilon_initial;
     epsilon_overall = heat_epsilon_final;
@@ -74,6 +75,7 @@ double cache_aware_vi(struct StateListNode *list, int MaxIter, int round, int co
     retVal = value_iterate(w, epsilon_partition, epsilon_overall);
     time = (float)(clock()-compStartTime)/CLOCKS_PER_SEC;
     printf("Actual Value_iterate function in: %f secs\n", time);
+    printf("Update time taken = %f; Update iters time taken = %f secs\n", w->val_update_time, w->val_update_iters_time);
 
 /*    init_level1_part_queue(w);
     init_level0_bit_queue(w);
@@ -167,6 +169,8 @@ double gauss(double x)
     return exp(power_val);
 }
 
+//#define CLUSTERED
+
 world_t *init_world(struct StateListNode *list, int component_size, int round)
 {
     world_t *w;
@@ -207,8 +211,11 @@ world_t *init_world(struct StateListNode *list, int component_size, int round)
     }
     
     compStartTime = clock();
+#ifndef CLUSTERED
     assign_state_to_part_num(list, w);
-    //assign_state_to_part_cluster(list, w, round);
+#else
+    assign_state_to_part_cluster(list, w, round);
+#endif
     time = (float)(clock()-compStartTime)/CLOCKS_PER_SEC;
     printf("Partitioned in: %f secs\n", time);
     
@@ -225,7 +232,9 @@ world_t *init_world(struct StateListNode *list, int component_size, int round)
         w->parts[l_part].values.elts = (double *)malloc(sizeof(double)*w->parts[l_part].num_states );
         w->parts[l_part].values.nelts = w->parts[l_part].num_states;
     }
+    w->total_int_deps = 0; w->total_ext_deps = 0;
     traverse_comp_form_parts(list, w, round);
+    wlog(1, "Total internal dependents = %lu; Ext = %lu\n", w->total_int_deps, w->total_ext_deps);
     form_level1_parts(w);
     //Create all the queues needed to mantain states/parts/level1 parts to be processed during VI.
     
@@ -333,6 +342,7 @@ void assign_state_to_part_num(struct StateListNode *list, world_t *w)
         w->gsi_to_lsi[state->comp_state_num] = w->parts[part_num].num_states;
         w->parts[part_num].num_states++;
     }
+    wlog(1, "Actual total number of Parts=%d\n", part_num);
     if ( (comp_state_num != w->num_global_states) && (part_num != w->num_global_parts - 1) )
     {
         wlog(1, "Something wrong with counting states and parts.");
@@ -340,7 +350,7 @@ void assign_state_to_part_num(struct StateListNode *list, world_t *w)
     }
 }
 
-
+#define PROB_TRANS_THRESH 0.2
  void assign_state_to_part_cluster(struct StateListNode *list, world_t *w, int round)
  {
      struct StateNode *state = NULL;
@@ -408,7 +418,8 @@ void assign_state_to_part_num(struct StateListNode *list, world_t *w)
                                  }
                                  else if (w->state_to_partnum[comp_state_num] == -1)      //Only adding those nbrs to the q that have not been assigned already
                                  {
-                                     queue_add(states_queue, comp_state_num);
+                                     if (nextState->Prob >= (float)PROB_TRANS_THRESH)            //Add only those neighbors to the cluster that have high prob of transition.
+                                         queue_add(states_queue, comp_state_num);
                                  }  //end else if - nbr was not yet assigned to part.
                              }      //Nbr in same scc
                          }  //end if - Nbr was not null.
@@ -424,7 +435,10 @@ void assign_state_to_part_num(struct StateListNode *list, world_t *w)
          }
          
      }      //End for statelist.
+     wlog(1, "Actual total number of Parts=%d\n", part_num);
+
      free(states_array);
+     destroy_queue(states_queue);
      //destroy states_queue. Implement the destroy function in queue.
  }
 
@@ -551,6 +565,9 @@ void copy_state_to_part(struct StateNode *state, world_t *w, int round)
         }
         st_dest->tps[action_num].int_deps = beg_dep;
         st_dest->tps[action_num].ext_deps = ndeps - beg_dep;     //This is not correct. Need to separate int and ext deps.
+        
+        w->total_int_deps += st_dest->tps[action_num].int_deps;
+        w->total_ext_deps += st_dest->tps[action_num].ext_deps;
         action_num++;
     }
     w->parts[part_num].values.elts[state_index_curr_part] = state->fWeight;

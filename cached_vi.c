@@ -7,6 +7,8 @@
 //
 
 #include "cached_vi.h"
+#include <time.h>
+#include <sys/time.h>
 
 double heat_epsilon_partition;
 double heat_epsilon_overall;
@@ -332,6 +334,7 @@ double value_iterate_partition( world_t *w, int l_part )
     float max_heat, delta, part_internal_heat = 0;
     med_hash_t *dep_part_hash;
     int numPartitionIters = 0;
+    clock_t update_start_time;
     
     int g_end_ext_partition, l_end_ext_state, index1 = 0, index2 = 0;
     val_t *val_state_action;
@@ -341,6 +344,7 @@ double value_iterate_partition( world_t *w, int l_part )
     pp = &( w->parts[ l_part ] );
     state_cnt = pp->num_states;
     
+    update_start_time = clock();
     
     dep_part_hash = w->parts[l_part].my_ext_parts_states;
     //Iterate over all external states grouped by partitions they belong to.
@@ -361,6 +365,9 @@ double value_iterate_partition( world_t *w, int l_part )
         max_heat = fabs( delta ) > max_heat ? fabs( delta ): max_heat;
     }
     
+    w->val_update_time += (float)(clock() - update_start_time)/CLOCKS_PER_SEC;
+    
+    update_start_time = clock();
     if (max_heat > heat_epsilon_partition)
     {
         //This is equivalent to while(true) as we don't change max_heat in the while loop.
@@ -393,6 +400,7 @@ double value_iterate_partition( world_t *w, int l_part )
             }
         }
     }
+    w->val_update_iters_time += (float)(clock() - update_start_time)/CLOCKS_PER_SEC;
     return max_heat;
 }
 

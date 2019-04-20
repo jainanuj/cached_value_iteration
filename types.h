@@ -121,6 +121,11 @@ typedef struct world_t {
     unsigned long num_value_updates;
     unsigned long num_value_updates_iters;      //Counter for all cached updates.
     unsigned long new_partition_wash;
+    unsigned long total_int_deps;
+    unsigned long total_ext_deps;
+    
+    double val_update_time;
+    double val_update_iters_time;
     
     /* this is the number of partitions that we've processed. */
     int parts_processed;

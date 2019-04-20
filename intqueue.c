@@ -74,6 +74,16 @@ queue *queue_create( int maxitems, int max_val )
   return q;
 }
 
+void destroy_queue(queue *q)
+{
+#ifdef BITQ
+    destroy_bit_queue(q->bitqueue);
+#endif
+    free(q->items);
+    free(q);
+}
+
+
 int empty_queue( queue *q)
 {
     q->numitems = 0;
