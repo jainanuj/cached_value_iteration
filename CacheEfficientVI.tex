@@ -40,8 +40,7 @@ Lehi Ut, USA \\
 anujjain@adobe.com}
 \and
 \IEEEauthorblockN{2\textsuperscript{nd} Sartaj Sahni}
-\IEEEauthorblockA{\textit{CISE Deptt} \\
-\textit{University of Florida}\\
+\IEEEauthorblockA{\textit{University of Florida}\\
 Gainesville Fl, USA \\
 sahni@cise.ufl.edu}
 }
@@ -83,10 +82,10 @@ In the area of sales/marketing \cite{b9}, examples of some useful applications a
 \item A common use case is to make decisions on the amount of budget to spend on advertising. The states in this application are based on the budget spent in the past and resulting demand for the product. The reward is defined again in terms of net profit, where profit is defined as sales revenue plus salvage values less advertising cost.
 \end {itemize}
 
-Value Iteration (VI) \cite{suttonbook} is a powerful method for solving MDPs. However, algorithms based on VI can be extremely time consuming because of the large number of states in any practical problem. In practical problems where number of states may be several million, the number of backups that need to be performed can easily exceed a few billion. Many attempts have been made to improve the
+Value Iteration (VI) \cite{suttonbook} is a powerful method for solving MDPs. However, algorithms based on VI can be extremely time consuming because of the large number of states in any practical problem. Many attempts have been made to improve the
 efficiency of VI \cite{b10}, \cite{b11}, \cite{wingate_seppi2}. These have focussed on reducing the number of backups
 by employing heuristics to eliminate redundant backups \cite{b10}, \cite{b11} and exploiting the 
-graphical structure of the MDP \cite{b10}.
+graphical structure of the MDP \cite{b10}. An interesting approach towards approximate solution of MDPs is described in \cite{ApproxVI}.
 
 To our knowledge, there has been no prior attempt to speed up VI
 by exploiting the cache efficiency of modern computers.
@@ -94,8 +93,8 @@ In this paper, we demonstrate that by employing cache efficient strategies, we c
 
 In Section~\ref{sec:MCP} we provide a description of MDPs and VI. In Section~\ref{sec:CacheModel}, we
 describe a cache model that has been successfully used before in \cite{chunchun-sahni} to improve the performance of algorithms. This model provides the intuitive support for the strategies proposed in Section~\ref{sec:CacheStrategies} to improve the cache efficiency of VI.
-In Section~\ref{sec:imp}, we provide some implementation details for the strategies of Section~\ref{sec:CacheStrategies}. The strategies of Section~\ref{sec:CacheStrategies} were implemented in concert with the state-of-the-art VI algorithm $FTVI$ \cite{b10} and an experimental
-evaluation of these strategies relative to a standard $FTVI$ implementation
+In Section~\ref{sec:imp}, we provide some implementation details for the strategies of Section~\ref{sec:CacheStrategies}. An experimental
+evaluation of these strategies relative to a state-of-the-art VI implementation
 that does not employ these strategies is provided in Section~\ref{sec:exp}.
 We conclude in Section~\ref{sec:conc}.
 
@@ -116,7 +115,8 @@ where \textit{Q(s,a)} denotes the value of taking action \textit{a} $\in$ \texti
 Q(s,a)=C(s,a) + \gamma \sum\limits_{s'} T(s,a,s')  {\displaystyle\min_{a'\in A} }  Q(s',a') \label{eqvalcost}
 \end{equation}
 In such a model the optimal values would be the minimal values that converge given a policy.
-Most optimal MDP algorithms are based on dynamic programing. Most powerful, yet simple dynamic programing algorithm is called \textbf{Value Iteration} (Bellman, 1957). In Value Iteration, the values of states or \textit{(state, action)} pairs are updated iteratively, to create successively better approximation of the values of each state, action (\textit{s,a}) pair per iteration. Updating of the value of a given state or \textit{(state, action)} pair is referred to as a \textbf{backup} operation through out this paper. These operations transfer the information \textit{back} to a \textit{state} or \textit{(state, action)} pair from its successor \textit{states} or \textit{(state, action)} pairs. The algorithm stops when the values converge and none of the values change anymore or the change is below a certain threshold ($\epsilon$). This is described in Algorithm~\ref{alg:VI}
+Most optimal MDP algorithms are based on dynamic programing. Most powerful, yet simple dynamic programing algorithm is called \textbf{Value Iteration} (Bellman, 1957). In Value Iteration, the values of states or \textit{(state, action)} pairs are updated iteratively, to create successively better approximation of the values of each state, action (\textit{s,a}) pair per iteration. Updating of the value of a given state or \textit{(state, action)} pair is referred to as a \textbf{backup} operation through out this paper. These operations transfer the information \textit{back} to a \textit{state} or \textit{(state, action)} pair from its successor \textit{states} or \textit{(state, action)} pairs. The algorithm stops when the values converge and none of the values change anymore or the change is below a certain threshold ($\epsilon$). This is described in Algorithm~\ref{alg:VI}.
+\alglanguage{pseudocode}
 \begin{algorithm}
 \caption{Value Iteration}
 \label{alg:VI}
@@ -131,12 +131,22 @@ Most optimal MDP algorithms are based on dynamic programing. Most powerful, yet 
 		\State $\textit{Residual(s,a)} \leftarrow |\textit{Q(s,a)} - \textit{oldQ}|$
 		\State $\textit{Bell\_error} \leftarrow max(\textit{Bell\_error} , \textit{Residual(s,a)})$
 	\EndFor
-	\If {$\textit{Bell\_error} < $\epsilon$ $}
+	\If {$\textit{Bell\_error} < \epsilon $}
 		\State return \textit{Q}
 	\EndIf
 \EndWhile
 \end{algorithmic}
 \end{algorithm}
+Prioritized VI (PVI) is a refinement of VI in which the state updates are done in priority order \cite{suttonbook}. In PVI,
+each state is assigned a priority. In each cycle of VI we select the state with highest priority to update. Following the update of this state, the priority values of dependent states are recomputed. Then we move to next cycle.
+Since PVI incurs a high overhead in each cycle to select the highest priority state to update, Wingate et al.~\cite{wingate_seppi2} developed
+a partitioned version to reduce this overhead. In their partitioned method, states are grouped into partitions and priorities are assigned to the
+whole partition. Subsequently VI is done on partitions in priority order. 
+Wingate et al.~\cite{wingate_seppi2} point out that although PVI works well with
+an appropriate choice for partition size, they don't know how to predict a good partition size.
+Our motivation to partition the state space is cache efficiency rather than reducing the overhead of selecting the next state to update.
+Good partition sizes in our scheme can be predicted based on cache size. Further, in our present scheme partitions are updated in a predetermined fixed order
+with no (dynamic) priority scheme employed.
 
 \section{Cache Model}
 \label{sec:CacheModel}
@@ -162,11 +172,11 @@ This observation leads to the following strategies to improve cache efficiency p
 
 
 \begin{itemize}
-\item \textbf{Partition the state space into sets of states, where each set is represented as \textit{S}  - } As described in \cite{suttonbook} for the asynchronous dynamic programing algorithms used for evaluating an MDP, states in a given MDP can be updated in any order whatsoever, using whatever values of the other states that happen to be available. Values of some states or (state, action) pairs may be backed up several times before some other states are backed up even once. The only condition required for the DP algorithm to converge is that no state is ignored unless it is known that the backups of that state is not required for the optimal solution. Taking advantage of this concept, we partition the state space into partitions consisting of sets of states. The idea behind the partitioning is that instead of performing VI across the entire state space until convergence, we perform VI on \textit{S} until \textit{Q(s,a)} for all \textit{(s,a)} $\in$ \textit{S} converge. Typically, for convergence, any given state is visited multiple times. If all \textit{s} $\in$ \textit{S} with all their properties fit into cache, then while performing VI on the states in \textit{S}, no write misses occur. There can be many interesting ways to partition the state space. As will be evident in our cache efficient algorithm introduced later, we need to do special work for state transitions across partitions. Therefore, ideal partitioning scheme would minimize such transitions. In this paper we follow a naive partitioning scheme that only makes sure that the set of partitions cover the entire state space and each partition fits into the cache. We pre-define the size of the partitions based on the cache size. The states in the MDP are assigned to a partition based on it it's index/order provided in the input MDP.
+\item \textbf{Partition the state space into sets of states, where each set is represented as \textit{S}} As described in \cite{suttonbook} for the asynchronous dynamic programing algorithms used for evaluating an MDP, states in a given MDP can be updated in any order, using whatever values of the other states that happen to be available. Values of some states or (state, action) pairs may be backed up several times before some other states are backed up even once. The only condition required for the DP algorithm to converge is that no state is ignored unless it is known that the backups of that state is not required for the optimal solution. Taking advantage of this concept, we partition the state space into partitions consisting of sets of states. The idea behind the partitioning is that instead of performing VI across the entire state space until convergence, we perform VI on \textit{S} until \textit{Q(s,a)} for all \textit{(s,a)} $\in$ \textit{S} converge. Typically, for convergence, any given state is visited multiple times. If all \textit{s} $\in$ \textit{S} with all their properties fit into cache, then while performing VI on the states in \textit{S}, no write misses occur. There can be many interesting ways to partition the state space. As will be evident in our cache efficient algorithm introduced later, we need to do special work for state transitions across partitions. Therefore, ideal partitioning scheme would minimize such transitions. In this paper we follow a naive partitioning scheme that only makes sure that the set of partitions cover the entire state space and each partition fits into the cache. We pre-define the size of the partitions based on the cache size.
 %%Introduce the concept of partitioned value iteration. Also present the algorithm.
 
-\item \textbf{Reduce read misses when performing VI on a partition S} - As noted above, write misses are eliminated during the VI of a partition $S$ when $S$ fits into cache. However, read misses may occur as the successor states for $s$
-may be external to $S$ and whenever the value of such a state is needed, we may incur a cache miss. To avoid these read misses, we note that the value of extenral states is unchanged during the VI of $S$. So, the contribution of external states to value of any state in $S$ may be computed prior to the VI of $S$ and the
+\item \textbf{Reduce read misses when performing VI on a partition S} As noted above, write misses are eliminated during the VI of a partition $S$ when $S$ fits into cache. However, read misses may occur as the successor states for a $s$
+may be external to $S$. Whenever the value of such a successor state is needed we may incur a read miss. To avoid these read misses, we note that the value of external states is unchanged during the VI of $S$. So, the contribution of external states to value of any state in $S$ may be computed prior to the VI of $S$ and the
 aggregate contribution of all external states that an internal state $s$ may transition to accounted for.
 \end{itemize}
 
@@ -226,7 +236,6 @@ The \em{dependent partitions} ( \textit{S''} ) of $S$ are the partitions that co
 
 %\end{itemize}
 Fig.~\ref{fig} illustrates the concepts of external and dependent partitions.
-
 \begin{figure}[htbp]
 \centerline{\includegraphics{figs/setTransitions.eps}}
 \caption{Example of arbitrary sets with states \textit{s''}, \textit{s} and \textit{s'}. \textit{s} $\in$ \textit{S} can transition to \textit{s'} $\in$ \textit{S'}, therefore \textit{S'} is an external partition for \textit{S}. \textit{S''} is dependent on \textit{S} as \textit{s''} $\in$ \textit{S''} can transition to \textit{s} $\in$ \textit{S}}
@@ -235,64 +244,45 @@ Fig.~\ref{fig} illustrates the concepts of external and dependent partitions.
 
 Our cache efficient VI algorithm, Algorithm~\ref{alg:CaV}, is divided into two parts. The first part, which is from lines \ref{alg:CaV:setupStart} to \ref{alg:CaV:setupEnd}, does the setup, where for each set \textit{S} we identify the external partitions and states \textit{(S',s')} as well as the
 dependent partitions \textit{S''}. We store this information in appropriate data structures associated with each set \textit{S} and initialize a $queue$ with all the partitions.  Subsequently, in the second part of the algorithm,
-lines \ref{alg:CaV:cachedAlg} to \ref{alg:CaV:cachedAlgEnd}, we pick up partitions from the $queue$, one at a time, and perform VI on the picked partition. While performing VI on a partition, we read the values of the external states only once before the first iteration and compute the contribution of all such external states to \textit{(s,a)} in \textit{$e.c_{s,a}$}. This way we don't incur a cache miss while performing any of the subsequent iterations of VI on the partition, until convergence. Also, as described in step \ref{alg:CaV:extStates}, to read the values of the external states we go in the order of the external sets that these states belong to. Therefore, we only incur as many cache misses as the number of external sets \textit{S'} for any given set \textit{S}. Finally if there is any change in a value of a state \textit{s} $\in$ \textit{S} we add the dependents sets \textit{S''} to the $queue$. The $q.enqueue()$ operation is designed such that it adds an item to the queue only if not already present.
+lines \ref{alg:CaV:cachedAlg} to \ref{alg:CaV:cachedAlgEnd}, we pick up partitions from the $queue$, one at a time, and perform VI on the picked partition. While performing VI on a partition, we read the values of the external states only once before the first iteration and compute the contribution of all such external states to \textit{(s,a)} in $ExtSetSt(s,a)$. This way we don't incur a cache miss while performing any of the subsequent iterations of VI on the partition, until convergence. Also, as described in step \ref{alg:CaV:extStates}, to read the values of the external states we go in the order of the external sets that these states belong to. Therefore, we only incur as many cache misses as the number of external sets \textit{S'} for any given set \textit{S}. Finally if there is any change in a value of a state \textit{s} $\in$ \textit{S} we add the dependents sets \textit{S''} to the $queue$. The $q.enqueue()$ operation is designed such that it adds an item to the queue only if not already present.
 
 \alglanguage{pseudocode}
 \begin{algorithm}
 \caption{Cache Efficient Value Iteration}
 \label{alg:CaV}
 \begin{algorithmic}[1]
-\ForAll {$\textit{S} \in \textit{SS}$}	\label{alg:CaV:setupStart}
-	\ForAll {$(s,a) \in S$}
-		\State $int\_index \leftarrow 0 $
-		\State $ext\_index \leftarrow 0$
-		\ForAll{$\textit{s'} \mid p(\textit{s'$|$s,a}) > 0$}
-			\If {$s' \in \textit{S}$}
-				\State \textit{(s,a)}.\textit{$s'_{i}$} [int\_index++] $\leftarrow$ \textit{s'}
-			\Else [$s' \notin \textit{S}$]
-				\State \textit{(s,a)}.\textit{$s'_{e}$} [ext\_index] $\leftarrow$ \textit{s'}
-				\State \textit{S'} $\leftarrow$ SET(\textit{(s,a)}.\textit{$s'_{e}$} [ext\_index])  {\tiny //where \{SET(s') $\rightarrow$ S' $\mid$ \textit{s'} $\in$ \textit{S'}\}}
-				\State \textit{S}.ext\_sets() $\cup$ \{\textit{S'}\}
-				\State \textit{S}.ext\_sets[\textit{S'}].ext\_states() \textbf{$\cup$} \{\textit{(s,a)}.\textit{$s'_{e}$} [ext\_index]\}
-				\State ext\_index++
-			\EndIf
-		\EndFor
+\ForAll {$\textit{S} \in \textit{SS}$ and $(s,a) \in S$}	\label{alg:CaV:setupStart}
+	\ForAll{($s' \mid p(\textit{s'$|$s,a}) > 0$ and $s' \notin \textit{S}$)}
+		\State Add $(S',s')$ to $ExtSetSt(S,s,a)$
+		\State Add $S$ to $S.D(S')$
 	\EndFor
 \State \textit{q.enqueue(S)}
 \EndFor	\label{alg:CaV:setupEnd}
 
 \While {!\textit{q.isEmpty()}}	\label{alg:CaV:cachedAlg}
 	\State $\textit{S} \leftarrow \textit{q.deque()}$
-	\ForAll {\textit{(S',s')} $\in$ \textit{S.ext\_sets().ext\_states()}}
-		\State \textit{S.ext\_sets[S'].ext\_states[s']} = \textit{S'.V[s']}  {\tiny //read values of all external states for for \textit{S} in \textit{ext\_states}. \textit{V[s']} = ${\displaystyle\max_{a'\in A}Q(s',a')}$}
+	\ForAll {\textit{(S',s')} $\in$ $ExtSetSt(S,s,a)$}
+		\State  $ExtSetSt(Ssa) \gets V[s']$\Comment{\textit{V[s']} = ${\displaystyle\max_{a'\in A}Q(s',a')}$}
 		\label{alg:CaV:extStates}
 	\EndFor
-	\ForAll {\textit{(s,a)} $\in$ \textit{S}}
-		\State $e.c_{s,a} = \gamma \sum\limits_{s'_{e}} T(s,a,s'_{e}) S.ext\_sets[S'].ext\_states[s'_{e}]$ {\tiny //Add contribution of all external states \textit{(s,a)} could transition to}
+	\ForAll {\textit{(s,a)} $\in$ \textit{S}}\Comment{Sum external state contributions}
+		\State $e.c_{s,a} \gets \gamma \sum\limits_{s'} T(s,a,s') ExtSetSt(S,s,a)$
 	\EndFor
 	\State $\textit{S\_changed} \leftarrow false$
-	\While {true}
-		\ForAll {\textit{(s,a)} $\in$ \textit{S}}
-			\State $\textit{oldQ} \leftarrow \textit{Q(s,a)}$
-			\State $\textit{Q(s,a)} \leftarrow \textit{R(s,a)}$ + \\
-			$\gamma \sum\limits_{s'_{i}} T(s,a,s'_{i})  {\displaystyle\max_{a'\in A} } Q(s'_{i},a') + e.c_{s,a}$
+	\State Perform $VI$ on S using eqn:
+	\State $\textit{Q(s,a)} \leftarrow \textit{R(s,a)}$ + \\
+		  $\gamma \sum\limits_{s'_{i}} T(s,a,s'_{i})  {\displaystyle\max_{a'\in A} } Q(s'_{i},a') + e.c_{s,a}$\Comment{$s'_{i} \in S$} 
 			\label{alg:CaV:finalEqn}
-			\State $\textit{Res(s,a)} \leftarrow |\textit{Q(s,a)} - \textit{oldQ}|$
-			\State $\textit{Bell\_error} \leftarrow max(\textit{Bell\_error} , \textit{Res(s,a)})$
-			\State  $\textit{S\_changed} \leftarrow \textit{Bell\_error?true:S\_changed}$
-			\State $V[s] = {\displaystyle\max_{a\in A}Q(s,a)}$
-		\EndFor
-		\If {$\textit{Bell\_error} < \epsilon$}
-			\State break {\tiny //from while true}
-		\EndIf
-	\EndWhile
-	\If {\textit{S\_changed}}
-		\State \textit{q.enqueue(S.D(S))}  {\tiny //Add all dependent sets to queue to re-evaluate as \textit{S} changed.}
+	\If {$Q(s,a)$ for any (s,a) changes}
+		\State $S\_changed = true$
 	\EndIf
-\EndWhile	{\tiny //Until \textit{q} is empty}	\label{alg:CaV:cachedAlgEnd}
+
+	\If {\textit{S\_changed}}
+		\State \textit{q.enqueue(S.D(S))}\Comment{Add dependent Sets to queue}
+	\EndIf
+\EndWhile \label{alg:CaV:cachedAlgEnd}
 \end{algorithmic}
 \end{algorithm}
-
 
 \section{Experimental Results}
 \label{sec:exp}
@@ -300,7 +290,7 @@ To evaluate the effectiveness of Algorithm~\ref{alg:CaV} we incorporated it
 into the state-of-the-art VI algorithm $FTVI$ \cite{b10}.
 We chose $FTVI$ for our experiments because experimental results reported in \cite{b10} indicate that $FTVI$ outperforms other known VI algorithms.
 A high level description of the $FTVI$ algorithm, as described in \cite{b10}, is provided in Algorithm~\ref{alg:FTVI}.
-$FTVI.CE$ ($FTVI$ Cache Efficient) is $FTVI$ modified to invoke Algorithm~\ref{alg:CaV} for $SCC$s whose size (i.e., number of states) exceeds a threshold, which was set to $1000$ in our experiments.
+$FTVI.CE$ ($FTVI$ Cache Efficient) is $FTVI$ modified to invoke Algorithm~\ref{alg:CaV} for $SCC$s whose size (i.e., number of states) exceeds a threshold, which was set to $1000$ states in our experiments.
 
 \begin{algorithm}[h]
 \caption{High Level Description of FTVI}
@@ -314,14 +304,12 @@ $FTVI.CE$ ($FTVI$ Cache Efficient) is $FTVI$ modified to invoke Algorithm~\ref{a
 
 To compare the performance of $FTVI$ and $FTVI.CE$, we used the following data sets:
 \begin{enumerate}
-	\item Mountain Car (MCAR) - This is a two-dimensional control problem that is characterized by position and velocity. A small car must rock back and forth until it gains enough momentum to carry itself up the top of the hill. Any exit on the left hand side of the problem results in a reward of $-1$. A gradient reward is given on the right hand side, with the maximum reward of $1$ being given if the car exits the state space with zero velocity. A high velocity results in a reward of $-1$. For the MCAR problem, we experimented with MDPs that had $1M$ (one million) and $4M$ states.
-
-\item Single Arm Pendulum (SAP) -  This is a two dimensional minimum time optimal control problem. The agent has two actions available representing positive and negative torques applied to a rotating pendulum, which the agent must learn to swing up and balance. Similar to the MCAR the agent cannot move the pendulum from the bottom to the top directly, but must learn to rock it back and forth. Rewards are zero everywhere but in the balanced region. The state space is defined by the angle of the link ($\theta$) and the angular velocity of the link ($d\theta/dt$). The MDP for SAP had $1M$ states.
-
-\item Double Arm Pendulum (DAP) - This is a four-dimensional minimum-time control problem. A central motor applies torque to the primary link. It is similar to SAP, except that there are two links. The agent must balance the second link vertically but it is a free-swinging link. The state space is defined by the two linkages ($\theta_{1}$,$\theta_{2}$) and their angular velocities ($d\theta_{1}/dt$, $d\theta_{2}/dt$). For this problem, we used MDPs with $1M$ and $2M$ states.
+\item Mountain Car (MCAR) - This is a two-dimensional control problem that is characterized by position and velocity. A small car must rock back and forth until it gains enough momentum to carry itself up the top of the hill. Any exit on the left hand side of the problem results in a reward of $-1$. A gradient reward is given on the right hand side, with the maximum reward of $1$ being given if the car exits the state space with zero velocity. A high velocity results in a reward of $-1$. 
+\item Single Arm Pendulum (SAP) -  This is a two dimensional minimum time optimal control problem. The agent has two actions available representing positive and negative torques applied to a rotating pendulum, which the agent must learn to swing up and balance. Similar to the MCAR the agent cannot move the pendulum from the bottom to the top directly, but must learn to rock it back and forth. Rewards are zero everywhere but in the balanced region. The state space is defined by the angle of the link ($\theta$) and the angular velocity of the link ($d\theta/dt$). 
+\item Double Arm Pendulum (DAP) - This is a four-dimensional minimum-time control problem. A central motor applies torque to the primary link. It is similar to SAP, except that there are two links. The agent must balance the second link vertically but it is a free-swinging link. The state space is defined by the two linkages ($\theta_{1}$,$\theta_{2}$) and their angular velocities ($d\theta_{1}/dt$, $d\theta_{2}/dt$).
 \end{enumerate}
 
-The MDPs for MCAR, SAP, and DAP were generated using the data generation programs of \cite{b11}. We experimented also with the Mesh problem of \cite{b11}. However, the MDPs for the Mesh problem had no SCC whose size exceeded the threshold of 1000. As a result, $FTVI$ and $FTVI.CE$ had the same performance. We were unable to use the remaining data sets of \cite{b10} as the generators for these data sets were not available.
+The MDPs for MCAR, SAP, and DAP were generated using the data generation programs of \cite{b11}. We experimented also with the Mesh problem of \cite{b11}. However, the MDPs for the Mesh problem had no SCC whose size exceeded the threshold of $1000$ states. As a result, $FTVI$ and $FTVI.CE$ had the same performance. We were unable to use the remaining data sets of \cite{b10} as the generators for these data sets were not available.
 Since $FTVI$ requires that the MDP have one or more goal states specified, our data sets also had goal states.
 Our experiments were performed using a
 PC with an Intel Core 2.5 GHz i7 Processor with 3 levels of cache and 16 GB of main memory.
@@ -334,7 +322,7 @@ The maximum difference in the values for the \textit{(s,a)} pairs across the ent
 
 Tables~\ref{tab1}-\ref{tab5} give the experimental results for our data sets. The ratio (Runtime($FTVI$))/(Runtime($FTVI.CE$)) ranges from a low of $2.27$ for the MCAR data set with $4M$ states to a high of $3.7$ for the DAP data set with $2M$ states.
 
-We were unable to experiment with SAP data set instances as the $FTVI$ program kept crashing for the SAP dataset with $\ge1$ M states  on our test platform. For the DAP dataset the maximum size that $FTVI$ could handle was $2M$ states, so we have reported the comparisons for datasets with $1M$ and $2M$ states.
+We were unable to experiment with more SAP data set instances as the $FTVI$ program kept crashing for the SAP dataset with $\ge1$ M states  on our test platform. For the DAP dataset the maximum size that $FTVI$ could handle was $2M$ states, so we have reported the comparisons for datasets with $1M$ and $2M$ states.
 
 For each experiment, it is clear that the total cache misses for $FTVI.CE$ is much lower than the $FTVI$ algorithm. The number of instructions executed by $FTVI.CE$ for the MCar experiment with $4M$ states is higher than the number of instructions executed by the $FTVI$. For other experiments, number of instructions for $FTVI$ is higher. However for every experiment, the number cache misses per instruction is much lower for the $FTVI.CE$ algorithm. Therefore, as expected number of instructions executed per CPU cycle is much higher for $FTVI.CE$ in each of the experiment. Higher cache misses lead to more expensive memory accesses and hence more expensive instruction execution for the $FTVI$ algorithm. Therefore, the $FTVI.CE$ algorithm outperforms $FTVI$ due to better caching and hence faster instruction execution.
 
@@ -359,15 +347,15 @@ Better run times and better caching performance is evident in the experimental r
 
 It is important to note that the $FTVI$ algorithm as stated in \cite{b10} is the fastest algorithm for solving MDPs. The $FTVI.CE$ described in this paper is an improvement over this fastest known algorithm for large data sets with at least one large SCC. The major contributions to this improvement is achieved due to better caching.
 
-The benefits of better caching kick in when the data sets are large with at least one large SCC. We could only perform a limited number of comparative experiments between $FTVI$ and $FTVI.CE$ on large data sets as the $FTVI$ program crashes on some of the large instances on our test platform. It crashes for SAP data set for 1M states or bigger. The $FTVI$ program also crashes for DAP data set for anything bigger than 2M states.
+The benefits of better caching kick in when the data sets are large with at least one large SCC. We could only perform a limited number of comparative experiments between $FTVI$ and $FTVI.CE$ on large data sets as the $FTVI$ program crashes on some of the large instances on our test platform.
 
 \label{sec:tables}
 \begin{table}[h!]
 \caption{Mountain Car problem with 1 M states. Size of the largest component: $767098$ states. (s = seconds, M = million, B = billion). Rt($FTVI$)/Rt($FTVI.CE$) = $3.04$;  \#Insns($FTVI$)/\#Insns($FTVI.CE$) = $1.26$}
-\vskip 0.18in
+%\vskip 0.18in
 \begin{center}
-\begin{small}
-\begin{sc}
+%\begin{small}
+%\begin{sc}
 \begin{tabular}{|c|c|c|}
 \hline
 \textbf{Metric}&\multicolumn{2}{|c|}{\textbf{MCar $1$ M States}} \\
@@ -390,20 +378,20 @@ Cache-misses/Instruction & $0.14\%$ & $0.5\%$ \\
 \hline
 %\multicolumn{4}{l}{$^{\mathrm{a}}$Sample of a Table footnote.}
 \end{tabular}
-\end{sc}
-\end{small}
+%\end{sc}
+%\end{small}
 \label{tab1}
 \end{center}
-\vskip -0.1in
+%\vskip -0.1in
 \end{table}
 
 
 \begin{table}[h!]
 \caption{Mountain Car problem with 4 M states. Size of the largest component: $3.18 M$ states. Rt($FTVI$)/Rt($FTVI.CE$) = $2.27$; \#Insns($FTVI$)/\#Insns($FTVI.CE$) = $0.924$}
-\vskip 0.18in
+%\vskip 0.18in
 \begin{center}
-\begin{small}
-\begin{sc}
+%\begin{small}
+%\begin{sc}
 \begin{tabular}{|c|c|c|}
 \hline
 \textbf{Metric}&\multicolumn{2}{|c|}{\textbf{MCar $4$ M States}} \\
@@ -427,19 +415,19 @@ Cache-misses/Instruction & $0.096\%$ & $0.56\%$ \\
 %\multicolumn{4}{l}{$^{\mathrm{a}}$Sample of a Table footnote.}
 \end{tabular}
 \label{tab2}
-\end{sc}
-\end{small}
+%\end{sc}
+%\end{small}
 \end{center}
-\vskip -0.1in
+%\vskip -0.1in
 \end{table}
 
 
 \begin{table}[h!]
 \caption{Double Arm Pendulum problem with 1 M states. Size of the largest component: $0.9 M$ states. Rt($FTVI$)/Rt($FTVI.CE$) = $3.01$; \#Insns($FTVI$)/\#Insns($FTVI.CE$) = $1.47$}
-\vskip 0.18in
+%\vskip 0.18in
 \begin{center}
-\begin{small}
-\begin{sc}
+%\begin{small}
+%\begin{sc}
 \begin{tabular}{|c|c|c|}
 \hline
 \textbf{Metric}&\multicolumn{2}{|c|}{\textbf{DAP $1$ M States}} \\
@@ -462,18 +450,18 @@ Cache-misses/Instruction & $0.37\%$ & $1.11\%$ \\
 \hline%\multicolumn{4}{l}{$^{\mathrm{a}}$Sample of a Table footnote.}
 \end{tabular}
 \label{tab4}
-\end{sc}
-\end{small}
+%\end{sc}
+%\end{small}
 \end{center}
-\vskip -0.1in
+%\vskip -0.1in
 \end{table}
 
 \begin{table}[h!]
 \caption{Double Arm Pendulum problem with 2 M states. Size of the largest component: $1.9 M$ states.Rt($FTVI$)/Rt($FTVI.CE$) = $3.70$; \#Insns($FTVI$)/\#Insns($FTVI.CE$) = $1.66$}
-\vskip 0.18in
+%\vskip 0.18in
 \begin{center}
-\begin{small}
-\begin{sc}
+%\begin{small}
+%\begin{sc}
 \begin{tabular}{|c|c|c|}
 \hline
 \textbf{Metric}&\multicolumn{2}{|c|}{\textbf{DAP $2$ M States}} \\
@@ -496,8 +484,8 @@ Cache-misses/Instruction & $0.31\%$ & $1.02\%$ \\
 \hline%\multicolumn{4}{l}{$^{\mathrm{a}}$Sample of a Table footnote.}
 \end{tabular}
 \label{tab5}
-\end{sc}
-\end{small}
+%\end{sc}
+%\end{small}
 \end{center}
 \end{table}
 
@@ -506,7 +494,26 @@ Cache-misses/Instruction & $0.31\%$ & $1.02\%$ \\
 \label{sec:conc}
 We have proposed a cache efficient algorithm for $VI$ and benchmarked this against the start-of-the-art $FTVI$ algorithm. The effectiveness of our cache efficient strategy was demonstrated experimentally and speedups of up to $3.7$ times the original algorithm were obtained. Despite the overheads introduced by our strategy to achieve cache efficiency, the number of instructions executed reduced in 3 of our 4 tests. The total number of cache misses, number of cache misses per instruction, and the number of backups reduced in all cases. The reduction in number of instructions, number of cache misses, cache misses per instruction, and number of backups was up to 39.5\%, 81.7\%, 82.8\% and 75.8\% respectively.
 
-\bibliographystyle{IEEEtran}
-\bibliography{CacheEfficientVI}
+\begin{thebibliography}{00}
+\bibitem{b11} David Wingate and Kevin D. Seppi, ``Efficient Value Iteration Using Partitioned Models,'' Proceedings of the International Conference on Machine Learning and Applications - ICMLA '03, pp. 53-59, 2003.
+\bibitem{suttonbook} Richard S. Sutton and Andrew G. Barto, ``Reinforcement Learning: An Introduction,'' The MIT Press Cambridge, Massachusetts London, 2nd ed, 2012.
+\bibitem{neuro-dyn} Dimitri P. Bertsekas and John N. Tsitsiklis, ``Neuro-Dynamic Programming,'' Athena Scientific, Belmont, Massachusetts, 1996.
+\bibitem{b8} D.J White, ``A Survey of Applications of Markov Decision Processes,'' The Journal of the Operational Research Society, vol 44, pp. 1073-1096, 1993.
+\bibitem{chunchun-sahni} C. Zhao and S. Sahni, ``Cache and energy efficient algorithms for Nussinov RNA folding,'' BMC Bioinformatics, vol. 18, no. 15 pp. 518, 2017
+\bibitem{b9} V.R Rao and L.J Thomas, ``Dynamic Models for Sales promotion policies," The Journal of the Operational Research Society, vol. 24, no. 3, pp 403-407. 1973.
+
+\bibitem{b10} Peng Dai and Mausam and Daniel S. Weld and Judy Goldsmith, ``Topological Value Iteration Algorithms," Journal of Artificial Intelligence Research, vol. 42, pp 181-209, 2011.
+\bibitem{wingate_seppi2} D Wingate and Kevin D Seppi, ``Prioritization Methods for accelerating MDP Solvers," Journal of Machine Learning Research, vol. 6, no. 15, pp 851-881, 2005.
+\bibitem{perf} ``Perf tool: Profiler tool for Linux 2.6+ based systems," https://perf.wiki.kernel.org/index.php/Tutorial.
+
+\bibitem{ApproxVI} Aaron Sidford, Mengdi Wang, Xian Wu, Yinyu Ye, ``Variance Reduced Value Iteration and Faster Algorithms for Solving Markov Decision Processes,", CoRR, abs/1710.09988, Oct 2017.
+\bibitem{Eff_CMDP} Constantine Caramanis, Nedialko B. Dimitrov, and David P. Morton, ``Efficient Algorithms for Budget-Constrained Markov Decision Processes, IEEE Transactions on Automatic Control, vol. 59, no. 10, Oct 2014.
+
+
+\end{thebibliography}
+
+
+%\bibliographystyle{IEEEtran}
+%\bibliography{CacheEfficientVI}
 
 \end{document}
