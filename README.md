@@ -1,6 +1,6 @@
 # cached vi
 To build:
-make clean
+make clean;
 make
 
 
