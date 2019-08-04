@@ -7,6 +7,7 @@
 //
 
 #include "cached_vi.h"
+#include "types.h"
 #include <time.h>
 #include <sys/time.h>
 

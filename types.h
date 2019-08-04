@@ -12,9 +12,13 @@
 #include "intqueue.h"
 #include "intheap.h"
 
-#define PART_SIZE  5000//6100       //3
+#define PART_SIZE  500  //6100       //3
+#define LEVEL1_PART_SIZE   5000  //50000 //5        //No. of states in level 1 parts
 #define ARR_SIZE  1000000
-#define NUM_PARTS_IN_LEVEL1 700
+#define COMP_SIZE_THRESHOLD  500 //2  //10000
+//#define __TEST__
+
+//#define NUM_PARTS_IN_LEVEL1 700
 
 
 typedef struct vec_t {
@@ -96,8 +100,11 @@ typedef struct part_t {
 
 typedef struct level1_part_t {
     int *sub_parts;        //This is an array of part#s of sub parts belonging to this level1 part.
+    int *states;           //Array containing global index of all states belonging to this level1 part.
     int num_sub_parts;     //Number of sub_parts belonging to this level1 part.
+    int cur_sub_part;       //Used while forming the sub parts.
     med_hash_t *my_local_dependents;
+    int num_states;
 } level1_part_t;
 
 
@@ -106,6 +113,7 @@ typedef struct world_t {
     int num_global_states;
     int num_local_states;
     int num_level1_parts;
+    int num_parts_in_level1;
     
     part_t *parts;
     level1_part_t   *level1_parts;
@@ -113,6 +121,7 @@ typedef struct world_t {
     queue *part_queue;
     queue *part_level1_queue;
     bit_queue *part_level0_bit_queue;
+    struct StateNode **states_array;
 //    bit_queue *terminal_bit_queue;
 //    bit_queue *dead_bit_queue;
 //    bit_queue *planningStates;
@@ -135,9 +144,11 @@ typedef struct world_t {
     int pi_sweeps, max_pi_sweeps, pi_iters;
     /* this maps GLOBAL states to GLOBAL partnums! */
     int *state_to_partnum;
+    int *state_to_level1_partnum;
     //This maps level0 parts to level1 parts
     int *part_level0_to_level1;
     int *gsi_to_lsi;
+    int *gpi_to_lpi;
     
 } world_t;
 

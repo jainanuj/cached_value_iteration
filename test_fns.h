@@ -12,7 +12,6 @@
 #include <stdio.h>
 #include "cache_aware_vi.h"
 #include "cached_vi.h"
-//#define __TEST__
 
 #ifdef __TEST__
 int lsi_to_gsi_over_mdp(world_t *w, int l_part, int state_index);

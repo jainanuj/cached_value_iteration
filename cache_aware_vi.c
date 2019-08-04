@@ -40,18 +40,21 @@ double cache_aware_vi(struct StateListNode *list, int MaxIter, int round, int co
 
 #ifdef __TEST__
     print_back_mdp(w, "verify_mdp_initialized");
-    //return 1;
+#endif
+    //resolve external dependencies.
+    resolve_ext_deps(w);
+    cache_dependencies_in_states(w);
+    translate_all(w);
+
+#ifdef __TEST__
     print_back_mdp(w, "verify_mdp_translated_neg");
     //    return 1;
     print_back_deps(w, "verify_deps");
     //return 1;
     //    print_back_cache(w, "verify_cached");
 #endif
+
     
-    //resolve external dependencies.
-    resolve_ext_deps(w);
-    cache_dependencies_in_states(w);
-    translate_all(w);
     compute_initial_partition_priorities( w );
     init_part_heap( w );
     reorder_states_within_partitions( w );
@@ -169,77 +172,61 @@ double gauss(double x)
     return exp(power_val);
 }
 
-//#define CLUSTERED
+#define CLUSTERED
 
 world_t *init_world(struct StateListNode *list, int component_size, int round)
 {
     world_t *w;
-    int l_part, st_index;
+    int st_index;
     
     clock_t     compStartTime = 0;
     double time = 0;
     //Define Threshold sizes for partitions.
     w = (world_t *)malloc( sizeof( world_t ) );
     w->num_global_states = component_size;
-    w->num_global_parts = component_size/(int)PART_SIZE;
+    w->num_level1_parts = component_size/(int)LEVEL1_PART_SIZE;
+    if (component_size % (int)LEVEL1_PART_SIZE > 0)
+        w->num_level1_parts += 1;
     
-    if (component_size % PART_SIZE > 0)
-        w->num_global_parts += 1;
-    w->num_global_parts += 1;
-    
-    w->parts = (part_t *)malloc( sizeof(part_t) * w->num_global_parts );
-    if ( w->parts == NULL ) {
-        wlog( 1, "Could not allocate partition array!\n" );
-        exit( 0 );
-    }
-    memset( w->parts, 0, sizeof(part_t) * w->num_global_parts );
+    w->level1_parts = malloc( sizeof(level1_part_t) * w->num_level1_parts);
+    memset(w->level1_parts, 0, sizeof(level1_part_t) * w->num_level1_parts);
     
     w->state_to_partnum = (int *)malloc( sizeof(int) * w->num_global_states );
-    if ( w->state_to_partnum == NULL ) {
+    w->state_to_level1_partnum = (int *)malloc( sizeof(int) * w->num_global_states );
+    if ( w->state_to_partnum == NULL || w->state_to_level1_partnum == NULL) {
         wlog( 1, "Error allocating state_to_partnum!\n" );
         exit( 0 );
     }
     for (st_index = 0; st_index < w->num_global_states; st_index++)
     {
         w->state_to_partnum[st_index] = -1;         //Initialize states to a non-existent part
+        w->state_to_level1_partnum[st_index] = -1;         //Initialize states to a non-existent level1 part
     }
-    
     w->gsi_to_lsi = (int *)malloc( sizeof(int) * w->num_global_states );
     if ( w->gsi_to_lsi == NULL ) {
         wlog( 1, "Error allocating gsi_to_lsi!\n" );
         exit( 0 );
     }
-    
+
+    form_level1_parts(w);
+
     compStartTime = clock();
 #ifndef CLUSTERED
     assign_state_to_part_num(list, w);
 #else
-    assign_state_to_part_cluster(list, w, round);
+    assign_state_to_part_cluster(list, w, round);       //Assigns state to level1 part.
 #endif
     time = (float)(clock()-compStartTime)/CLOCKS_PER_SEC;
     printf("Partitioned in: %f secs\n", time);
     
-    for (l_part = 0; l_part < w->num_global_parts; l_part++)
-    {
-        w->parts[ l_part ].states = (state_t *)malloc( sizeof(state_t)*w->parts[l_part].num_states);
-        w->parts[ l_part ].states_ind = (int *)malloc(sizeof(int) * w->parts[l_part].num_states);
-        if ( w->parts[ l_part ].states == NULL ) {
-            wlog( 1, "Error allocating states!\n" );
-            exit( 0 );
-        }
-        memset( w->parts[ l_part ].states, 0, sizeof(state_t)*w->parts[l_part].num_states );
-        memset( w->parts[ l_part ].states_ind, 0, sizeof(int)*w->parts[l_part].num_states );
-        w->parts[l_part].values.elts = (double *)malloc(sizeof(double)*w->parts[l_part].num_states );
-        w->parts[l_part].values.nelts = w->parts[l_part].num_states;
-    }
+    form_level0_parts(list, w);
     w->total_int_deps = 0; w->total_ext_deps = 0;
     traverse_comp_form_parts(list, w, round);
     wlog(1, "Total internal dependents = %lu; Ext = %lu\n", w->total_int_deps, w->total_ext_deps);
-    form_level1_parts(w);
     //Create all the queues needed to mantain states/parts/level1 parts to be processed during VI.
-    
     //Number of parts in each level1 part. //Two params are number of items and the max value of the item.
-    w->part_queue = queue_create(NUM_PARTS_IN_LEVEL1 + 1, w->num_global_parts);
+//    w->part_queue = queue_create(NUM_PARTS_IN_LEVEL1 + 1, w->num_global_parts);
+    w->part_queue = queue_create( w->num_parts_in_level1, w->num_global_parts);
     if ( w->part_queue == NULL ) {
         wlog( 1, "Error creating queue!\n" );
         exit( 0 );
@@ -351,18 +338,22 @@ void assign_state_to_part_num(struct StateListNode *list, world_t *w)
 }
 
 #define PROB_TRANS_THRESH 0.2
+#define CUMM_PROB_THRESH 1.0
+#define MIN_NBRS 2
+#define NBR_VAL 0.3
  void assign_state_to_part_cluster(struct StateListNode *list, world_t *w, int round)
  {
      struct StateNode *state = NULL;
      struct StateListNode     *stateListNode;
-     int part_num = 0;
+     int level1_part_num = 0;
      int comp_state_num = 0, cur_state, it_present;
      queue* states_queue;
      struct StateNode **states_array;
-     int states_in_cur_part = 0;
+     int states_in_cur_part = 0, num_nbrs_added = 0, nbr_is_val = 0;
      struct ActionListNode *actionListNode = NULL;
      struct ActionNode *actionNode = NULL;
      struct StateDistribution *nextState = NULL;
+     double cumm_action_prob = 0;
 
  
      states_array = (struct StateNode **)malloc( sizeof(struct StateNode *) * w->num_global_states);
@@ -375,25 +366,26 @@ void assign_state_to_part_num(struct StateListNode *list, world_t *w)
      }
      states_queue = queue_create(w->num_global_states, w->num_global_states);
      
-     //Initialize number of states in each partition.
-     part_num = 0; states_in_cur_part = 0;
+     //Initialize number of states in each level1 partition.
+     level1_part_num = 0; states_in_cur_part = 0;
      
      for (stateListNode = list; stateListNode && stateListNode->Node; stateListNode = stateListNode->Next)
      {
          state = stateListNode->Node;
          comp_state_num = state->comp_state_num;       //Get index of the state.
-         if (w->state_to_partnum[comp_state_num] != -1)     //State already assigned to some part.
+         if (w->state_to_level1_partnum[comp_state_num] != -1)     //State already assigned to some part.
              continue;
          queue_add(states_queue, comp_state_num);
          //w->parts[part_num].num_states = 0;             //This doesn't seem right. The num_states is initialized when allocated.
-         while (queue_has_items(states_queue) && states_in_cur_part < PART_SIZE)
+         while (queue_has_items(states_queue) && states_in_cur_part < LEVEL1_PART_SIZE)
          {
              it_present = queue_pop(states_queue, &cur_state);
-             w->state_to_partnum[cur_state] = part_num;     //Assign this state number to current partition.
+             w->state_to_level1_partnum[cur_state] = level1_part_num;     //Assign this state number to current partition.
+             w->level1_parts[level1_part_num].states[w->level1_parts[level1_part_num].num_states] = cur_state;
+             w->level1_parts[level1_part_num].num_states++;
              states_in_cur_part++;
-             w->parts[part_num].num_states++;
 
-             if (states_in_cur_part < PART_SIZE)        //Look at neighbors only if partition is not yet full.
+             if (states_in_cur_part < LEVEL1_PART_SIZE)        //Look at neighbors only if partition is not yet full.
              {
                  state = states_array[cur_state];       //retreive the state just assigned to this part and visit nbrs
                  //Visit Neighbors and add all neighbors to the queue.
@@ -403,6 +395,8 @@ void assign_state_to_part_num(struct StateListNode *list, world_t *w)
                      //validate_actionNode(actionNode);
                      if (actionNode->Dominated == 1)
                          continue;
+                     cumm_action_prob = 0;
+                     num_nbrs_added=0;
                      for (nextState = actionNode->NextState; nextState; nextState = nextState->Next)
                      {
                          if (nextState != NULL)
@@ -416,10 +410,27 @@ void assign_state_to_part_num(struct StateListNode *list, world_t *w)
                                      printf("Happening with State: %d\n", actionNode->StateNo);
                                      exit(1);
                                  }
-                                 else if (w->state_to_partnum[comp_state_num] == -1)      //Only adding those nbrs to the q that have not been assigned already
+                                 else if (w->state_to_level1_partnum[comp_state_num] == -1)  //Only add nbrs to q that are assigned already
                                  {
-                                     if (nextState->Prob >= (float)PROB_TRANS_THRESH)            //Add only those neighbors to the cluster that have high prob of transition.
-                                         queue_add(states_queue, comp_state_num);
+                                     if ( (nextState->Prob >= (double)PROB_TRANS_THRESH) )//Add nbrs that have high transition prob.
+                                     {
+                                         nbr_is_val = 1;
+                                         if (cumm_action_prob > 0)
+                                         {
+                                             if ((nextState->Prob/cumm_action_prob) > (double)NBR_VAL)
+                                                {nbr_is_val = 1;}
+                                            else
+                                                {nbr_is_val = 0;}
+                                         }
+                                         if (nbr_is_val)
+                                         {
+                                             queue_add(states_queue, comp_state_num);
+                                             num_nbrs_added++;
+                                             cumm_action_prob += nextState->Prob;
+                                             if (cumm_action_prob >= (double)CUMM_PROB_THRESH)
+                                                 break;             //Total probability for imm nbrs for an action reached.
+                                         }
+                                     }
                                  }  //end else if - nbr was not yet assigned to part.
                              }      //Nbr in same scc
                          }  //end if - Nbr was not null.
@@ -427,15 +438,15 @@ void assign_state_to_part_num(struct StateListNode *list, world_t *w)
                  }  //end for all possible actions for this state.
              }   //End if - Look at neighbors only if partition is not yet full.
          }      //End while
-         if (states_in_cur_part == PART_SIZE)       //The partition is full to its capacity so now new partitoin will start filling up.
+         if (states_in_cur_part == LEVEL1_PART_SIZE)       //The partition is full to its capacity so now new partitoin will start filling up.
          {
              empty_queue(states_queue);     //Empty the queue as no more states can be added to the partition just filled up.
-             part_num++;        //Now we will start filling up next partition.
+             level1_part_num++;        //Now we will start filling up next partition.
              states_in_cur_part = 0;        //Initialize number of states in next partition.
          }
          
      }      //End for statelist.
-     wlog(1, "Actual total number of Parts=%d\n", part_num);
+     wlog(1, "Actual total number of Parts=%d\n", level1_part_num);
 
      free(states_array);
      destroy_queue(states_queue);
@@ -444,22 +455,9 @@ void assign_state_to_part_num(struct StateListNode *list, world_t *w)
 
 void assign_part_to_level1_part(world_t *w)
 {
-    int num_part = 0, curr_part;
+    int num_part = 0, curr_level1_sub_part = 0;
     int level_1_part = 0;
-    for (num_part = 0; num_part < w->num_global_parts; num_part++)
-    {
-        if (w->level1_parts[level_1_part].num_sub_parts == NUM_PARTS_IN_LEVEL1)
-            level_1_part++;
-        curr_part = w->level1_parts[level_1_part].num_sub_parts;
-        w->part_level0_to_level1[num_part] = level_1_part;
-        w->level1_parts[level_1_part].sub_parts[curr_part] = num_part;
-        w->level1_parts[level_1_part].num_sub_parts++;
-    }
-}
-
-void form_level1_parts(world_t *w)
-{
-    int i;
+    
     w->part_level0_to_level1 = (int *)malloc( sizeof(int) * w->num_global_parts);
     if ( w->part_level0_to_level1 == NULL )
     {
@@ -467,19 +465,136 @@ void form_level1_parts(world_t *w)
         exit( 0 );
     }
     memset(w->part_level0_to_level1, 0, sizeof(int) * w->num_global_parts);
+    w->gpi_to_lpi = (int *)malloc( sizeof(int) * w->num_global_parts);
+    if ( w->gpi_to_lpi == NULL ) {
+        wlog( 1, "Error allocating gpi_to_lpi!\n" );
+        exit( 0 );
+    }
+
+    level_1_part = 0; curr_level1_sub_part = 0;
+    for (num_part = 0; num_part < w->num_global_parts; num_part++)
+    {
+        if (curr_level1_sub_part == w->level1_parts[level_1_part].num_sub_parts)
+        {
+            level_1_part++;
+            curr_level1_sub_part = 0;
+        }
+        w->part_level0_to_level1[num_part] = level_1_part;
+        w->level1_parts[level_1_part].sub_parts[curr_level1_sub_part] = num_part;
+        w->gpi_to_lpi[num_part] = curr_level1_sub_part;
+        curr_level1_sub_part++;
+    }
+}
+
+//Find the part home for every state.
+void assign_state_to_parts(struct StateListNode *list, world_t *w)
+{
+    int g_part_num = 0;
+    int comp_state_num = 0, i, l1_state_ind, sub_part_num, num_states_cur_sub_part;
     
-    w->num_level1_parts = w->num_global_parts/NUM_PARTS_IN_LEVEL1;
-    if (w->num_global_parts % NUM_PARTS_IN_LEVEL1 > 0)
-        w->num_level1_parts += 1;
-    w->level1_parts = malloc( sizeof(level1_part_t) * w->num_level1_parts);
-    memset(w->level1_parts, 0, sizeof(level1_part_t) * w->num_level1_parts);
     for (i = 0; i < w->num_level1_parts; i++)
     {
-        w->level1_parts[i].sub_parts = malloc(sizeof(int) * NUM_PARTS_IN_LEVEL1);
-        memset(w->level1_parts[i].sub_parts, 0, sizeof(int) * NUM_PARTS_IN_LEVEL1);
-        w->level1_parts[i].num_sub_parts = 0;
+        sub_part_num = 0;
+        num_states_cur_sub_part = 0;
+        for (l1_state_ind = 0; l1_state_ind < w->level1_parts[i].num_states; l1_state_ind++)
+        {
+            comp_state_num = w->level1_parts[i].states[l1_state_ind];
+            w->state_to_partnum[comp_state_num] = g_part_num;
+            w->gsi_to_lsi[comp_state_num] = num_states_cur_sub_part++;
+            if ( (num_states_cur_sub_part == (int)PART_SIZE) &&
+                l1_state_ind < (w->level1_parts[i].num_states - 1) )     //Need another sub part in this l1 part only if not
+            {                                                           //already at the last state in the l1 part.
+                sub_part_num++; g_part_num++;
+                num_states_cur_sub_part = 0;
+            }
+        }
+        g_part_num++;                                                   //New g_part for starting up the next l1_part.
+    }
+    wlog(1, "Actual total number of Parts=%d\n", g_part_num);
+    if ( g_part_num != w->num_global_parts)
+    {
+        wlog(1, "Something wrong with counting states and parts.");
+        exit(1);
+    }
+}
+
+void form_level1_parts(world_t *w)
+{
+    int i, states_in_l1_part;
+    
+    w->num_global_parts = 0;
+    w->num_parts_in_level1 = (int)LEVEL1_PART_SIZE/(int)PART_SIZE;
+    if ((int)LEVEL1_PART_SIZE % (int)PART_SIZE > 0)
+        w->num_parts_in_level1 += 1;
+    for (i = 0; i < w->num_level1_parts; i++)
+    {
+        if (i == w->num_level1_parts-1 )        //The last level1 part
+        {
+            if (w->num_global_states % (int)LEVEL1_PART_SIZE == 0)
+            {
+                w->level1_parts[i].num_sub_parts = w->num_parts_in_level1;
+                states_in_l1_part = (int)LEVEL1_PART_SIZE;
+                w->level1_parts[i].sub_parts = malloc(sizeof(int) * w->level1_parts[i].num_sub_parts);
+                w->level1_parts[i].states = malloc (sizeof(int) * states_in_l1_part);
+            }
+            else
+            {
+                states_in_l1_part = w->num_global_states % (int)LEVEL1_PART_SIZE;
+                w->level1_parts[i].num_sub_parts = states_in_l1_part/(int)PART_SIZE;
+                if (states_in_l1_part % (int)PART_SIZE > 0)
+                    w->level1_parts[i].num_sub_parts++;
+                w->level1_parts[i].sub_parts = malloc(sizeof(int) * w->level1_parts[i].num_sub_parts);
+                w->level1_parts[i].states = malloc (sizeof(int) * states_in_l1_part);
+            }
+        }
+        else
+        {
+            states_in_l1_part = (int)LEVEL1_PART_SIZE;
+            w->level1_parts[i].num_sub_parts = w->num_parts_in_level1;
+            w->level1_parts[i].sub_parts = malloc(sizeof(int) * w->level1_parts[i].num_sub_parts);
+            w->level1_parts[i].states = malloc (sizeof(int) * states_in_l1_part);
+        }
+        memset(w->level1_parts[i].sub_parts, 0, sizeof(int) * w->level1_parts[i].num_sub_parts);
+        memset(w->level1_parts[i].states, 0, sizeof(int) * states_in_l1_part);
+        w->num_global_parts += w->level1_parts[i].num_sub_parts;
     }
     assign_part_to_level1_part(w);
+}
+void form_level0_parts(struct StateListNode *list, world_t *w)
+{
+    int g_part, level1_part, l_part_index;
+    w->parts = (part_t *)malloc( sizeof(part_t) * w->num_global_parts );
+    if ( w->parts == NULL ) {
+        wlog( 1, "Could not allocate partition array!\n" );
+        exit( 0 );
+    }
+    memset( w->parts, 0, sizeof(part_t) * w->num_global_parts );
+    for (g_part = 0; g_part < w->num_global_parts; g_part++)
+    {
+        level1_part = w->part_level0_to_level1[g_part]; //Get level1 part for this g_part
+        l_part_index = w->gpi_to_lpi[g_part]; //the local index of that part in the level1_part
+        if (l_part_index == w->level1_parts[level1_part].num_sub_parts - 1) //If it is the last sub part of the level1 part.
+        {
+            if (w->level1_parts[level1_part].num_states % (int)PART_SIZE == 0)
+                w->parts[g_part].num_states = (int)PART_SIZE;
+            else
+                w->parts[g_part].num_states = w->level1_parts[level1_part].num_states % (int)PART_SIZE;
+        }
+        else
+            w->parts[g_part].num_states = (int)PART_SIZE;
+        
+        w->parts[ g_part ].states = (state_t *)malloc( sizeof(state_t)*w->parts[g_part].num_states);
+//        w->parts[ g_part ].states_ind = (int *)malloc(sizeof(int) * w->parts[g_part].num_states);
+        if ( w->parts[ g_part ].states == NULL ) {
+            wlog( 1, "Error allocating states!\n" );
+            exit( 0 );
+        }
+        memset( w->parts[ g_part ].states, 0, sizeof(state_t)*w->parts[g_part].num_states );
+//        memset( w->parts[ g_part ].states_ind, 0, sizeof(int)*w->parts[g_part].num_states );
+        w->parts[g_part].values.elts = (double *)malloc(sizeof(double)*w->parts[g_part].num_states );
+        w->parts[g_part].values.nelts = w->parts[g_part].num_states;
+    }
+    assign_state_to_parts(list, w);
 }
 
 void copy_state_to_part(struct StateNode *state, world_t *w, int round)
@@ -496,10 +611,10 @@ void copy_state_to_part(struct StateNode *state, world_t *w, int round)
     struct StateDistribution *nextState = NULL;
 
     int part_num = w->state_to_partnum[state->comp_state_num];
-    int state_index_curr_part = w->parts[part_num].cur_local_state++;
+    int state_index_curr_part = w->gsi_to_lsi[state->comp_state_num];//w->parts[part_num].cur_local_state++;
     st_dest = &(w->parts[part_num].states[state_index_curr_part]);
     st_dest->global_state_index = state->comp_state_num;
-    w->gsi_to_lsi[state->comp_state_num] = state_index_curr_part;
+//    w->gsi_to_lsi[state->comp_state_num] = state_index_curr_part;
     st_dest->over_mdp_state_index = state->StateNo;     //Mainly for debugging.
     
     //Copy all the actions from the state and all the possible next states for each action.
@@ -622,6 +737,11 @@ void initialize_level1_partitions( world_t *w )
 int state_to_partnum( world_t *w, int state_t )
 {
     return w->state_to_partnum[state_t];
+}
+
+int state_to_level1_partnum( world_t *w, int state_t )
+{
+    return w->state_to_level1_partnum[state_t];
 }
 
 int gsi_to_lsi(world_t *w, int global_index)

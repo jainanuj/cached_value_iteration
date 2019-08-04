@@ -81,7 +81,7 @@ void print_back_deps(world_t *w, char *verify_deps)
     val_t *v2;
     
     fprintf(fp_verify, "*****************\n");
-    fprintf(fp_verify, "State_to_partnum: comp_state    over_mdp_state  Part_num\n");
+    fprintf(fp_verify, "State_to_partnum:\n comp_state    over_mdp_state  Part_num\n");
     for (state_index=0; state_index < w->num_global_states; state_index++)
     {
         l_part = state_to_partnum(w, state_index);
@@ -90,7 +90,7 @@ void print_back_deps(world_t *w, char *verify_deps)
     }
     
     fprintf(fp_verify, "*****************\n");
-    fprintf(fp_verify, "Part_lev0_lev1");
+    fprintf(fp_verify, "Part_lev0_lev1\n");
     for (l_part=0; l_part < w->num_global_parts; l_part++)
     {
         l1_part = w->part_level0_to_level1[l_part];
