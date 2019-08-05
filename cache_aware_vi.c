@@ -169,7 +169,7 @@ double gauss(double x)
     return exp(power_val);
 }
 
-//#define CLUSTERED
+#define CLUSTERED
 
 world_t *init_world(struct StateListNode *list, int component_size, int round)
 {
