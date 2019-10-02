@@ -14,7 +14,7 @@
 
 #define PART_SIZE  5000//6100       //3
 #define ARR_SIZE  1000000
-#define NUM_PARTS_IN_LEVEL1 700
+#define NUM_PARTS_IN_LEVEL1 1000
 
 
 typedef struct vec_t {
@@ -64,6 +64,7 @@ typedef struct arr_states_t {
 typedef struct part_t {
     
     double heat, primary_heat;
+    double convergence_factor;
     int visits, washes, my_heap_num;
     int num_states;
     state_t *states;

@@ -10,7 +10,7 @@
 #include <time.h>
 #include <sys/time.h>
 
-double heat_epsilon_partition;
+double heat_epsilon_partition_initial;
 double heat_epsilon_overall;
 
 /*double value_iterate( world_t *w, double heat_epsilon_current )
@@ -39,7 +39,7 @@ void solve_using_prioritized_vi( world_t *w, double epsilon_partition, double ep
     int total_visits;
     
     total_visits = 0;
-    heat_epsilon_partition = epsilon_partition;
+    heat_epsilon_partition_initial = epsilon_partition;
     heat_epsilon_overall = epsilon_overall;
 
     while (1) {
@@ -273,11 +273,11 @@ void update_part_heat( world_t *w, int l_part_num, double heat_left)
 }
 
 
-double value_iterate( world_t *w, double epsilon_partition, double epsilon_overall )
+double value_iterate( world_t *w, double epsilon_partition_initial, double epsilon_overall )
 {
     int   level1_part;
     double tmp =0; //maxheat
-    heat_epsilon_partition = epsilon_partition;
+    heat_epsilon_partition_initial = epsilon_partition_initial;
     heat_epsilon_overall = epsilon_overall;
     //maxheat = 0;
     while (level1_part_available_to_process(w))
@@ -322,6 +322,10 @@ double value_iterate_level1_partition( world_t *w, int level1_part )
             if (w->part_queue->numitems > w->level1_parts[level1_part].num_sub_parts )
                 wlog(1, "storing too many items in level0 q. NumItems = %d\n",w->part_queue->numitems);
             maxheat = tmp>maxheat ? tmp: maxheat;
+/*            if (w->parts[next_level0_part].convergence_factor > heat_epsilon_overall)
+            {
+                add_partition_for_eval(w, next_level0_part);        //Add it back to the queue as even though it converged to convergence factor, the factor was bigger than final epsilon.
+            }*/
         }
     }
     return maxheat;
@@ -354,6 +358,11 @@ double value_iterate_partition( world_t *w, int l_part )
     {
         val_state_action->d = w->parts[g_end_ext_partition].values.elts[l_end_ext_state]; //Setting the value of that ext state
     }
+    if (w->parts[l_part].convergence_factor == -1)
+        w->parts[l_part].convergence_factor = heat_epsilon_partition_initial;
+    else if ( (w->parts[l_part].convergence_factor > heat_epsilon_overall) && (w->parts[l_part].washes % 10 == 0) )
+        w->parts[l_part].convergence_factor /= 10;
+        
     max_heat = 0;
     //First iteration of the partition.
     for ( i = 0; i < state_cnt; i++ )
@@ -368,7 +377,7 @@ double value_iterate_partition( world_t *w, int l_part )
     w->val_update_time += (float)(clock() - update_start_time)/CLOCKS_PER_SEC;
     
     update_start_time = clock();
-    if (max_heat > heat_epsilon_partition)
+    if (max_heat > w->parts[l_part].convergence_factor)
     {
         //This is equivalent to while(true) as we don't change max_heat in the while loop.
         //If max_heat == 0 we don't need to enter this loop as partition is already cold.
@@ -391,7 +400,7 @@ double value_iterate_partition( world_t *w, int l_part )
             numPartitionIters++;
             if (part_internal_heat > max_heat)
                 max_heat = part_internal_heat;
-            if (part_internal_heat < heat_epsilon_partition) //excluding (numPartitionIters > MAX_ITERS_PP) ||
+            if (part_internal_heat < w->parts[l_part].convergence_factor) //excluding (numPartitionIters > MAX_ITERS_PP) ||
             {
                 //if (numPartitionIters > 1)
                 //if (numPartitionIters >= 20)
@@ -400,6 +409,9 @@ double value_iterate_partition( world_t *w, int l_part )
             }
         }
     }
+    else if (w->parts[l_part].convergence_factor > heat_epsilon_overall)
+        w->parts[l_part].convergence_factor /= 10;
+
     w->val_update_iters_time += (float)(clock() - update_start_time)/CLOCKS_PER_SEC;
     return max_heat;
 }
@@ -478,6 +490,12 @@ void add_level0_partition_deps_for_eval(world_t *w, int l_part_changed)
         //        queue_add(w->part_queue, l_start_part);
     }
 }
+void add_partition_for_eval(world_t *w, int l_part)
+{
+    queue_add(w->part_queue, l_part);
+    set_dirty(w, l_part);
+}
+
 int set_dirty(world_t *w, int l_part)
 {
     return queue_add_bit(w->part_level0_bit_queue, l_part);

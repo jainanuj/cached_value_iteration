@@ -23,7 +23,7 @@ double cache_aware_vi(struct StateListNode *list, int MaxIter, int round, int co
     float iter_count = 0;
     unsigned long total_updates = 0, total_updates_iters = 0;
     
-    double epsilon_partition, epsilon_overall, time;
+    double epsilon_partition_initial, epsilon_overall, time;
     clock_t compStartTime;
     
     open_logfile_stdout();
@@ -66,13 +66,42 @@ double cache_aware_vi(struct StateListNode *list, int MaxIter, int round, int co
     w->num_value_updates = 0; w->num_value_updates_iters = 0; w->new_partition_wash = 0;
     w->val_update_time = 0; w->val_update_iters_time = 0;
     
-    epsilon_partition = heat_epsilon_final; //heat_epsilon_initial;
+    epsilon_partition_initial = 10; //10; //heat_epsilon_initial;
     epsilon_overall = heat_epsilon_final;
     init_level1_part_queue(w);
     init_level0_bit_queue(w);
     
     compStartTime = clock();
-    retVal = value_iterate(w, epsilon_partition, epsilon_overall);
+/*    retVal = value_iterate(w, 1000, 1000);
+    init_level1_part_queue(w);
+    init_level0_bit_queue(w);
+    retVal = value_iterate(w, 500, 500);
+    init_level1_part_queue(w);
+    init_level0_bit_queue(w);
+    retVal = value_iterate(w, 100, 100);
+    init_level1_part_queue(w);
+    init_level0_bit_queue(w);
+    retVal = value_iterate(w, 50, 50);
+    init_level1_part_queue(w);
+    init_level0_bit_queue(w);*/
+//    retVal = value_iterate(w, 10, 10);
+//    init_level1_part_queue(w);
+//    init_level0_bit_queue(w);
+//    retVal = value_iterate(w, 1, 1);
+//    init_level1_part_queue(w);
+//    init_level0_bit_queue(w);
+//    retVal = value_iterate(w, 0.1, 0.1);
+//    init_level1_part_queue(w);
+//    init_level0_bit_queue(w);
+//    retVal = value_iterate(w, 0.01, 0.01);
+//    init_level1_part_queue(w);
+//    init_level0_bit_queue(w);
+//    retVal = value_iterate(w, 0.0001, 0.0001);
+//    init_level1_part_queue(w);
+//    init_level0_bit_queue(w);
+    retVal = value_iterate(w, epsilon_partition_initial, epsilon_overall);
+//    solve_using_prioritized_vi( w, epsilon_partition, epsilon_overall );
+//    solve_using_prioritized_vi( w, epsilon_partition, epsilon_overall );
     time = (float)(clock()-compStartTime)/CLOCKS_PER_SEC;
     printf("Actual Value_iterate function in: %f secs\n", time);
     printf("Update time taken = %f; Update iters time taken = %f secs\n", w->val_update_time, w->val_update_iters_time);
@@ -82,7 +111,7 @@ double cache_aware_vi(struct StateListNode *list, int MaxIter, int round, int co
     retVal = value_iterate(w, epsilon_partition, epsilon_overall);
 */
 //    solve_using_prioritized_vi( w, epsilon_partition, epsilon_overall );
-    wlog(1, "Number of Backups for round-%d with ep_part=%6f, ep_overall=%6f:\t%lu\n", round, epsilon_partition, epsilon_overall, w->num_value_updates + w->num_value_updates_iters);
+    wlog(1, "Number of Backups for round-%d with ep_part=%6f, ep_overall=%6f:\t%lu\n", round, epsilon_partition_initial, epsilon_overall, w->num_value_updates + w->num_value_updates_iters);
     wlog(1, "Number of new partition washes=%lu, number of updates =%lu, number of update_iters=%lu\n", w->new_partition_wash, w->num_value_updates, w->num_value_updates_iters);
     
 /*    while (epsilon_overall > heat_epsilon_final)
@@ -120,7 +149,7 @@ double cache_aware_vi(struct StateListNode *list, int MaxIter, int round, int co
     total_updates_iters += w->num_value_updates_iters;
     w->num_value_updates = 0;w->num_value_updates_iters=0;
   */
-    wlog(1, "Final Number of Backups for round-%d with ep_part=%6f, ep_overall=%6f:\t%lu. Total_iter backups =%lu\n", round, epsilon_partition, epsilon_overall, total_updates, total_updates_iters);
+    wlog(1, "Final Number of Backups for round-%d with ep_part=%6f, ep_overall=%6f:\t%lu. Total_iter backups =%lu\n", round, epsilon_partition_initial, epsilon_overall, total_updates, total_updates_iters);
     
     save_resulting_vector(w, "cached_output", round, component_size);
 /*
@@ -231,6 +260,7 @@ world_t *init_world(struct StateListNode *list, int component_size, int round)
         memset( w->parts[ l_part ].states_ind, 0, sizeof(int)*w->parts[l_part].num_states );
         w->parts[l_part].values.elts = (double *)malloc(sizeof(double)*w->parts[l_part].num_states );
         w->parts[l_part].values.nelts = w->parts[l_part].num_states;
+        w->parts[l_part].convergence_factor = -1;       //initialize convergence to high initial value.
     }
     w->total_int_deps = 0; w->total_ext_deps = 0;
     traverse_comp_form_parts(list, w, round);
@@ -351,6 +381,10 @@ void assign_state_to_part_num(struct StateListNode *list, world_t *w)
 }
 
 #define PROB_TRANS_THRESH 0.2
+#define CUMM_PROB_THRESH 1.0
+#define MIN_NBRS 2
+#define MAX_NBRS 3
+#define NBR_VAL 0.3
  void assign_state_to_part_cluster(struct StateListNode *list, world_t *w, int round)
  {
      struct StateNode *state = NULL;
@@ -359,10 +393,11 @@ void assign_state_to_part_num(struct StateListNode *list, world_t *w)
      int comp_state_num = 0, cur_state, it_present;
      queue* states_queue;
      struct StateNode **states_array;
-     int states_in_cur_part = 0;
+     int states_in_cur_part = 0, num_nbrs_added = 0, nbr_is_val = 0;
      struct ActionListNode *actionListNode = NULL;
      struct ActionNode *actionNode = NULL;
      struct StateDistribution *nextState = NULL;
+     double cumm_action_prob = 0;
 
  
      states_array = (struct StateNode **)malloc( sizeof(struct StateNode *) * w->num_global_states);
@@ -403,6 +438,8 @@ void assign_state_to_part_num(struct StateListNode *list, world_t *w)
                      //validate_actionNode(actionNode);
                      if (actionNode->Dominated == 1)
                          continue;
+                     cumm_action_prob = 0;
+                     num_nbrs_added=0;
                      for (nextState = actionNode->NextState; nextState; nextState = nextState->Next)
                      {
                          if (nextState != NULL)
@@ -419,7 +456,24 @@ void assign_state_to_part_num(struct StateListNode *list, world_t *w)
                                  else if (w->state_to_partnum[comp_state_num] == -1)      //Only adding those nbrs to the q that have not been assigned already
                                  {
                                      if (nextState->Prob >= (float)PROB_TRANS_THRESH)            //Add only those neighbors to the cluster that have high prob of transition.
-                                         queue_add(states_queue, comp_state_num);
+                                     {
+                                         nbr_is_val = 1;
+                                         if (cumm_action_prob > 0)
+                                         {
+                                             if ((nextState->Prob/cumm_action_prob) > (double)NBR_VAL)
+                                             {nbr_is_val = 1;}
+                                             else
+                                             {nbr_is_val = 0;}
+                                         }
+                                         if (nbr_is_val)
+                                         {
+                                             queue_add(states_queue, comp_state_num);
+                                             num_nbrs_added++;
+                                             cumm_action_prob += nextState->Prob;
+                                             if ( (cumm_action_prob >= (double)CUMM_PROB_THRESH) || (num_nbrs_added >= (int)MAX_NBRS) )
+                                                 break;             //Total probability for imm nbrs for an action reached.
+                                         }
+                                     }
                                  }  //end else if - nbr was not yet assigned to part.
                              }      //Nbr in same scc
                          }  //end if - Nbr was not null.

@@ -36,6 +36,7 @@ int part_available_to_process(world_t *w);
 int get_next_part(world_t *w);
 void add_level0_partition_deps_for_eval(world_t *w, int l_part_changed);
 int set_dirty(world_t *w, int l_part);
+void add_partition_for_eval(world_t *w, int l_part);
 double value_update( world_t *w, int l_part, int l_state );
 double reward_or_value( world_t *w, int l_part, int l_state, int a );
 double get_remainder( world_t *w, int l_part, int l_state, int action );
