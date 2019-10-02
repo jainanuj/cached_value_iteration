@@ -84,7 +84,7 @@ void readRacetrackMDP (void)
   
   /* allocate vector of state nodes */
   StateIndex = 
-    (struct StateNode**)malloc((unsigned)gNumStates*sizeof(struct StateNode*));
+    (struct StateNode**)malloc((gNumStates+1)*sizeof(struct StateNode*));
   for (state = 0; state < gNumStates; state++) {
     StateIndex[state] = CreateStateNode();
     StateIndex[state]->StateNo = state;
@@ -300,7 +300,7 @@ void readRanMDP (void)
 
   /* allocate vector of state nodes */
   StateIndex = 
-    (struct StateNode**)malloc((unsigned)gNumStates*sizeof(struct StateNode*));
+    (struct StateNode**)malloc((gNumStates+1)*sizeof(struct StateNode*));
   for (state = 0; state < gNumStates; state++) {
     StateIndex[state] = CreateStateNode();
     StateIndex[state]->StateNo = state;
@@ -568,7 +568,7 @@ void readMDP (void)
   gDiscount = 1.0;
 
   /* allocate vector of state nodes */
-  StateIndex = (struct StateNode**)malloc((unsigned)gNumStates*sizeof(struct StateNode*));
+  StateIndex = (struct StateNode**)malloc((gNumStates+1)*sizeof(struct StateNode*));
   for (state = 0; state < gNumStates; state++) {
     StateIndex[state] = CreateStateNode();
     StateIndex[state]->StateNo = state;
@@ -755,7 +755,7 @@ void readWetfloorMDP (void)
 
   /* allocate vector of state nodes */
   StateIndex = 
-    (struct StateNode**)malloc((unsigned)gNumStates*sizeof(struct StateNode*));
+    (struct StateNode**)malloc((gNumStates+1)*sizeof(struct StateNode*));
   for (state = 0; state < gNumStates; state++) {
     StateIndex[state] = CreateStateNode();
     StateIndex[state]->StateNo = state;
