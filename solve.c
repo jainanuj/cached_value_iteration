@@ -217,7 +217,7 @@ static void DisplayHeader( void )
 int main(int argc, char **argv)
 {
 
-const rlim_t kStackSize = 32L * 1024L * 1024L;   // min stack size = 64 Mb
+const rlim_t kStackSize = 64L * 1024L * 1024L;   // min stack size = 64 Mb
     struct rlimit rl;
     int result;
 
