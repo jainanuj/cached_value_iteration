@@ -1,8 +1,8 @@
-# cached vi
-To build:
-make clean;
-make
+run the command 'ssh-keygen -o'
+Upload the key to github
+git clone git@github.com:jainanuj/cached_value_iteration.git
+move download and install files to the parent folder
+run the install file - 'run_install'
+move to the cached value iteration folder
+run tests './run_tests.sh'
 
-
-To run:
-./solve -p ../MDPs/evaluated/dap-100x100x10x10.mdp -method ftvi
