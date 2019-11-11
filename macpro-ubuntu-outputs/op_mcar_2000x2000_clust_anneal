@@ -1,0 +1,245 @@
+
+Initial state: 1161278
+Reading complete
+
+Number of goal reachable states: 3630428
+***************************************************************
+Solve ../MDPs/evaluated/mcar_2000x2000.mdp with 4000000 states, 0 actions and discount of 1.000000
+Using ftvi with epsilon 0.000001
+Using transition prob 0.900000
+Using heuristic discount 1.000000
+***************************************************************
+Shortest distance to goal 1449
+Total actions 7993020 per state 1.998255Starting next search batch
+
+Recursion count in expandsolution is: 600000
+Recursion count in expandsolution is: 1200000
+Recursion count in expandsolution is: 1800000
+Initial 0 trials  f: 210.759406 fprime: 4068.409039 error: 8058.594476
+Recursion count in expandsolution is: 600000
+Recursion count in expandsolution is: 1200000
+Recursion count in expandsolution is: 1800000
+Recursion count in expandsolution is: 600000
+Recursion count in expandsolution is: 1200000
+Recursion count in expandsolution is: 1800000
+Recursion count in expandsolution is: 600000
+Recursion count in expandsolution is: 1200000
+Recursion count in expandsolution is: 1800000
+Recursion count in expandsolution is: 600000
+Recursion count in expandsolution is: 1200000
+Recursion count in expandsolution is: 600000
+Recursion count in expandsolution is: 1200000
+Recursion count in expandsolution is: 600000
+Recursion count in expandsolution is: 1200000
+Recursion count in expandsolution is: 600000
+Recursion count in expandsolution is: 1200000
+Recursion count in expandsolution is: 600000
+Recursion count in expandsolution is: 1200000
+Recursion count in expandsolution is: 600000
+Recursion count in expandsolution is: 1200000
+Old v: 1449.000000 new v: 187.672657 change ratio of initial state value is 0.129519Starting next search batch
+
+Recursion count in expandsolution is: 600000
+Recursion count in expandsolution is: 1200000
+Recursion count in expandsolution is: 600000
+Recursion count in expandsolution is: 1200000
+Recursion count in expandsolution is: 600000
+Recursion count in expandsolution is: 1200000
+Recursion count in expandsolution is: 600000
+Recursion count in expandsolution is: 1200000
+Recursion count in expandsolution is: 600000
+Recursion count in expandsolution is: 1200000
+Recursion count in expandsolution is: 600000
+Recursion count in expandsolution is: 1200000
+Recursion count in expandsolution is: 600000
+Recursion count in expandsolution is: 1200000
+Recursion count in expandsolution is: 600000
+Recursion count in expandsolution is: 1200000
+Recursion count in expandsolution is: 600000
+Recursion count in expandsolution is: 1200000
+Recursion count in expandsolution is: 600000
+Recursion count in expandsolution is: 1200000
+Old v: 187.672657 new v: 98.126405 change ratio of initial state value is 0.522859Starting next search batch
+
+Recursion count in expandsolution is: 600000
+Recursion count in expandsolution is: 1200000
+Recursion count in expandsolution is: 600000
+Recursion count in expandsolution is: 1200000
+Recursion count in expandsolution is: 600000
+Recursion count in expandsolution is: 1200000
+Recursion count in expandsolution is: 600000
+Recursion count in expandsolution is: 1200000
+Recursion count in expandsolution is: 600000
+Recursion count in expandsolution is: 1200000
+Recursion count in expandsolution is: 600000
+Recursion count in expandsolution is: 1200000
+Recursion count in expandsolution is: 600000
+Recursion count in expandsolution is: 1200000
+Recursion count in expandsolution is: 600000
+Recursion count in expandsolution is: 1200000
+Recursion count in expandsolution is: 600000
+Recursion count in expandsolution is: 1200000
+Recursion count in expandsolution is: 600000
+Recursion count in expandsolution is: 1200000
+Old v: 98.126405 new v: 1.524632 change ratio of initial state value is 0.015537Starting next search batch
+
+Recursion count in expandsolution is: 600000
+Recursion count in expandsolution is: 1200000
+Recursion count in expandsolution is: 600000
+Recursion count in expandsolution is: 1200000
+Recursion count in expandsolution is: 600000
+Recursion count in expandsolution is: 1200000
+Recursion count in expandsolution is: 600000
+Recursion count in expandsolution is: 1200000
+Recursion count in expandsolution is: 600000
+Recursion count in expandsolution is: 1200000
+Recursion count in expandsolution is: 600000
+Recursion count in expandsolution is: 1200000
+Recursion count in expandsolution is: 600000
+Recursion count in expandsolution is: 1200000
+Recursion count in expandsolution is: 600000
+Recursion count in expandsolution is: 1200000
+Recursion count in expandsolution is: 600000
+Recursion count in expandsolution is: 1200000
+Recursion count in expandsolution is: 600000
+Recursion count in expandsolution is: 1200000
+Old v: 1.524632 new v: 0.359947 change ratio of initial state value is 0.236088Starting next search batch
+
+Recursion count in expandsolution is: 600000
+Recursion count in expandsolution is: 1200000
+Recursion count in expandsolution is: 600000
+Recursion count in expandsolution is: 1200000
+Recursion count in expandsolution is: 600000
+Recursion count in expandsolution is: 1200000
+Recursion count in expandsolution is: 600000
+Recursion count in expandsolution is: 1200000
+Recursion count in expandsolution is: 600000
+Recursion count in expandsolution is: 1200000
+Recursion count in expandsolution is: 600000
+Recursion count in expandsolution is: 1200000
+Recursion count in expandsolution is: 600000
+Recursion count in expandsolution is: 1200000
+Recursion count in expandsolution is: 600000
+Recursion count in expandsolution is: 1200000
+Recursion count in expandsolution is: 600000
+Recursion count in expandsolution is: 1200000
+Recursion count in expandsolution is: 600000
+Recursion count in expandsolution is: 1200000
+Old v: 0.359947 new v: 0.074246 change ratio of initial state value is 0.206269Starting next search batch
+
+Recursion count in expandsolution is: 600000
+Recursion count in expandsolution is: 1200000
+Recursion count in expandsolution is: 600000
+Recursion count in expandsolution is: 1200000
+Recursion count in expandsolution is: 600000
+Recursion count in expandsolution is: 1200000
+Recursion count in expandsolution is: 600000
+Recursion count in expandsolution is: 1200000
+Recursion count in expandsolution is: 600000
+Recursion count in expandsolution is: 1200000
+Recursion count in expandsolution is: 600000
+Recursion count in expandsolution is: 1200000
+Recursion count in expandsolution is: 600000
+Recursion count in expandsolution is: 1200000
+Recursion count in expandsolution is: 600000
+Recursion count in expandsolution is: 1200000
+Recursion count in expandsolution is: 600000
+Recursion count in expandsolution is: 1200000
+Recursion count in expandsolution is: 600000
+Recursion count in expandsolution is: 1200000
+Old v: 0.074246 new v: 0.013809 change ratio of initial state value is 0.185987Starting next search batch
+
+Recursion count in expandsolution is: 600000
+Recursion count in expandsolution is: 1200000
+Recursion count in expandsolution is: 600000
+Recursion count in expandsolution is: 1200000
+Recursion count in expandsolution is: 600000
+Recursion count in expandsolution is: 1200000
+Recursion count in expandsolution is: 600000
+Recursion count in expandsolution is: 1200000
+Recursion count in expandsolution is: 600000
+Recursion count in expandsolution is: 1200000
+Recursion count in expandsolution is: 600000
+Recursion count in expandsolution is: 600000
+Recursion count in expandsolution is: 600000
+Recursion count in expandsolution is: 600000
+Recursion count in expandsolution is: 600000
+Old v: 0.013809 new v: 0.003013 change ratio of initial state value is 0.218192Starting next search batch
+
+Recursion count in expandsolution is: 600000
+Recursion count in expandsolution is: 600000
+Recursion count in expandsolution is: 600000
+Recursion count in expandsolution is: 600000
+Recursion count in expandsolution is: 600000
+Recursion count in expandsolution is: 600000
+Recursion count in expandsolution is: 600000
+Recursion count in expandsolution is: 600000
+Recursion count in expandsolution is: 600000
+Recursion count in expandsolution is: 600000
+Old v: 0.003013 new v: 0.000572 change ratio of initial state value is 0.189817Starting next search batch
+
+Recursion count in expandsolution is: 600000
+Recursion count in expandsolution is: 600000
+Recursion count in expandsolution is: 600000
+Recursion count in expandsolution is: 600000
+Recursion count in expandsolution is: 600000
+Recursion count in expandsolution is: 600000
+Recursion count in expandsolution is: 600000
+Recursion count in expandsolution is: 600000
+Recursion count in expandsolution is: 600000
+Recursion count in expandsolution is: 600000
+Old v: 0.000572 new v: 0.000063 change ratio of initial state value is 0.110320Starting next search batch
+
+Recursion count in expandsolution is: 600000
+Recursion count in expandsolution is: 600000
+Recursion count in expandsolution is: 600000
+Recursion count in expandsolution is: 600000
+Recursion count in expandsolution is: 600000
+Recursion count in expandsolution is: 600000
+Recursion count in expandsolution is: 600000
+Recursion count in expandsolution is: 600000
+Recursion count in expandsolution is: 600000
+Recursion count in expandsolution is: 600000
+Old v: 0.000063 new v: 0.000005 change ratio of initial state value is 0.072549
+State expanded: 0
+Initial 100 trials( 59.915123 secs.)  f: 0.000005
+Total number of backups 117973247
+Going to build components
+Recursion count in f_reachability is: 600000
+Recursion count in f_reachability is: 1200000
+Recursion count in f_reachability is: 1800000
+Recursion count in f_reachability is: 2400000
+Recursion count in f_reachability is: 3000000
+Recursion count in f_dfsR is: 600000
+Recursion count in f_dfsR is: 1200000
+Recursion count in f_dfsR is: 1800000
+Recursion count in f_dfsR is: 2400000
+Bad Error in f_dfsR!!!!. Node number is: -1 out of bounds.
+
+Recursion count in f_dfsR is: 3000000
+Recursion count in f_dfsR is: 3600000
+Recursion count in f_dfs is: 600000
+Recursion count in f_dfs is: 1200000
+Recursion count in f_dfs is: 1800000
+Recursion count in f_dfs is: 2400000
+Recursion count in f_dfs is: 3000000
+Components: 813658
+elapsed time for building topological structure: 6.402132
+Total actions 7971113 per state 1.992778
+Solving components, no subdividing. Solving 369598 components
+Actual total number of Parts=637
+Partitioned in: 2.040397 secs
+Total internal dependents = 15123952; Ext = 3926579
+Actual Value_iterate function in: 72.868752 secs
+Update time taken = 44.218566; Update iters time taken = 28.541851 secs
+Number of Backups for round-369597 with ep_part=10.000000, ep_overall=0.000001:	563910444
+Number of new partition washes=38392, number of updates =191693628, number of update_iters=372216816
+Final Number of Backups for round-369597 with ep_part=10.000000, ep_overall=0.000001:	0. Total_iter backups =0
+Component in Cached Iter completed in: 82.758194 secs
+Couldn't solve component: 369597, in 10000 iterations. Error=9518.681641; Time=82.758194
+The size of component: 369597 is 3186212
+
+Biggest component size: 3186212
+369598 ( 149.453995 secs.)  f: 0.000005 Converged!
+Number of solved components=369597 and unreachable components=0
+Total number of backups: 118600768

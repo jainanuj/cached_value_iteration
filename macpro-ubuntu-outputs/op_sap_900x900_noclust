@@ -1,0 +1,47 @@
+
+Initial state: 4498
+Reading complete
+
+Number of goal reachable states: 810000
+***************************************************************
+Solve ../MDPs/evaluated/sap_900x900.mdp with 810000 states, 0 actions and discount of 1.000000
+Using ftvi with epsilon 0.000001
+Using transition prob 0.900000
+Using heuristic discount 1.000000
+***************************************************************
+Shortest distance to goal 574
+Total actions 1619998 per state 1.999998Starting next search batch
+
+Recursion count in expandsolution is: 600000
+Initial 0 trials  f: 569.546093 fprime: 9943.426276 error: 8.904303
+Recursion count in expandsolution is: 600000
+Old v: 574.000000 new v: 345.325121 change ratio of initial state value is 0.601612
+State expanded: 0
+Initial 10 trials( 1.765204 secs.)  f: 345.325121
+Total number of backups 5134095
+Going to build components
+Recursion count in f_reachability is: 600000
+Recursion count in f_dfsR is: 600000
+Bad Error in f_dfsR!!!!. Node number is: -1 out of bounds.
+
+Recursion count in f_dfs is: 600000
+Components: 3
+elapsed time for building topological structure: 1.915415
+Total actions 1619382 per state 1.999237
+Solving components, no subdividing. Solving 2 components
+Actual total number of Parts=161
+Partitioned in: 0.038978 secs
+Total internal dependents = 4430586; Ext = 427554
+Actual Value_iterate function in: 114.213142 secs
+Update time taken = 12.346059; Update iters time taken = 101.820650 secs
+Number of Backups for round-1 with ep_part=0.000001, ep_overall=0.000001:	1026384576
+Number of new partition washes=15712, number of updates =78554860, number of update_iters=947829716
+Final Number of Backups for round-1 with ep_part=0.000001, ep_overall=0.000001:	0. Total_iter backups =0
+Component in Cached Iter completed in: 120.929047 secs
+Couldn't solve component: 1, in 10000 iterations. Error=324.677277; Time=120.929047
+The size of component: 1 is 809998
+
+Biggest component size: 809998
+2 ( 124.721451 secs.)  f: 345.325121 Converged!
+Number of solved components=1 and unreachable components=0
+Total number of backups: 5134096
