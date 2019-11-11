@@ -15,6 +15,7 @@ The command line arguments are as follows:
 #include <string.h>
 #include <time.h>
 #include <sys/time.h>
+#include <sys/resource.h>
 #include "solve.h"
 #include "graph.h"
 #include "lao.h"
@@ -59,7 +60,7 @@ double      gRTProb =            0.9;
 double      gHDiscount =         1.0;
 int         gThread =            2;
 int         gPre =               0;
-int         gInitialState =      4498; //1161278;     // 4498; //1161278; ;  //2;      //1161278 - 4 mill statescar. 483679
+int         gInitialState =      4498; //1161278; ;  //2;      //1161278 - 4 mill statescar. 483679
 int         gQuitFlag =          0;
 int         gFTVIVersion =       1;     //Changed by Anuj from 0
 int         gGoalNum =           0;
@@ -215,6 +216,31 @@ static void DisplayHeader( void )
 
 int main(int argc, char **argv)
 {
+
+const rlim_t kStackSize = 64L * 1024L * 1024L;   // min stack size = 64 Mb
+    struct rlimit rl;
+    int result;
+
+    result = getrlimit(RLIMIT_STACK, &rl);
+    if (result == 0)
+    {
+        if (rl.rlim_cur < kStackSize)
+        {
+            rl.rlim_cur = kStackSize;
+            result = setrlimit(RLIMIT_STACK, &rl);
+            if (result != 0)
+            {
+                fprintf(stderr, "setrlimit returned result = %d\n", result);
+            }
+            else
+                fprintf(stderr, "setrlimit set the stack size to desired - 8MB");
+        }
+        else
+              fprintf(stderr, "Stack size already >= desired 8 MB");
+    }
+    else
+        fprintf(stderr, "Unable to fetch stack size");
+
   char* suffix;
   //sleep(10);
 
