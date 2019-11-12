@@ -1,4 +1,5 @@
 #run all tests
+cp ftvi.c.cache ftvi.c
 #clust and 1M
 cp cache_aware_vi.c.Clust.Anneal cache_aware_vi.c
 cp solve.c.1MInitial solve.c
