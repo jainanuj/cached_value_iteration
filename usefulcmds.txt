@@ -11,3 +11,7 @@ cat /etc/*release  //Flavor of linux version etc.
 
 https://github.com/circulosmeos/gdown.pl   //code for downloading files from google drive.
 ./solve -p ../MDPs/dap-100x100x10x10.mdp -method ftvi
+
+git clone https://github.com/circulosmeos/gdown.pl
+
+
