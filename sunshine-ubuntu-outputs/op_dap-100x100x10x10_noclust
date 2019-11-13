@@ -1,0 +1,55 @@
+
+Initial state: 4498
+Reading complete
+
+Number of goal reachable states: 1000000
+***************************************************************
+Solve ../MDPs/evaluated/dap-100x100x10x10.mdp with 1000000 states, 0 actions and discount of 1.000000
+Using ftvi with epsilon 0.000001
+Using transition prob 0.900000
+Using heuristic discount 1.000000
+***************************************************************
+Shortest distance to goal 33
+Total actions 1999998 per state 1.999998Starting next search batch
+
+Recursion count in expandsolution is: 600000
+Initial 0 trials  f: 30.307007 fprime: 9658.245160 error: 21.374206
+Recursion count in expandsolution is: 600000
+Recursion count in expandsolution is: 600000
+Recursion count in expandsolution is: 600000
+Recursion count in expandsolution is: 600000
+Recursion count in expandsolution is: 600000
+Recursion count in expandsolution is: 600000
+Recursion count in expandsolution is: 600000
+Recursion count in expandsolution is: 600000
+Recursion count in expandsolution is: 600000
+Old v: 33.000000 new v: 22.682140 change ratio of initial state value is 0.687338
+State expanded: 0
+Initial 10 trials( 10.473856 secs.)  f: 22.682140
+Total number of backups 9998849
+Going to build components
+Recursion count in f_reachability is: 600000
+Recursion count in f_dfsR is: 600000
+Bad Error in f_dfsR!!!!. Node number is: -1 out of bounds.
+
+Recursion count in f_dfs is: 600000
+Components: 2
+elapsed time for building topological structure: 3.062273
+Total actions 1999998 per state 1.999998
+Solving components, no subdividing. Solving 2 components
+Actual total number of Parts=199
+Partitioned in: 0.017444 secs
+Total internal dependents = 4267264; Ext = 5732726
+Actual Value_iterate function in: 67.822372 secs
+Update time taken = 47.787398; Update iters time taken = 19.967104 secs
+Number of Backups for round-1 with ep_part=0.000001, ep_overall=0.000001:	277094764
+Number of new partition washes=28101, number of updates =140499868, number of update_iters=136594896
+Final Number of Backups for round-1 with ep_part=0.000001, ep_overall=0.000001:	0. Total_iter backups =0
+Component in Cached Iter completed in: 70.164337 secs
+Couldn't solve component: 1, in 10000 iterations. Error=90.739151; Time=70.164337
+The size of component: 1 is 999999
+
+Biggest component size: 999999
+2 ( 83.777672 secs.)  f: 22.682140 Converged!
+Number of solved components=1 and unreachable components=0
+Total number of backups: 9998850

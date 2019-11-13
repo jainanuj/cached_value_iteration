@@ -5,4 +5,5 @@ move download and install files to the parent folder
 run the install file - 'run_install'
 move to the cached value iteration folder
 run tests './run_tests.sh'
-
+run nocache tests './run_nocache.sh'
+move all *perf and op* files to a folder (macproubuntu) and commit.

@@ -1,0 +1,81 @@
+
+Initial state: 1161278
+Reading complete
+
+Number of goal reachable states: 2000000
+***************************************************************
+Solve ../MDPs/evaluated/dap-200x100x10x10.mdp with 2000000 states, 0 actions and discount of 1.000000
+Using ftvi with epsilon 0.000001
+Using transition prob 0.900000
+Using heuristic discount 1.000000
+***************************************************************
+Shortest distance to goal 66
+Total actions 3999998 per state 1.999999Starting next search batch
+
+Recursion count in expandsolution is: 600000
+Recursion count in expandsolution is: 1200000
+Recursion count in expandsolution is: 1800000
+Initial 0 trials  f: 65.754604 fprime: 9399.183230 error: 13.505234
+Recursion count in expandsolution is: 600000
+Recursion count in expandsolution is: 1200000
+Recursion count in expandsolution is: 1800000
+Recursion count in expandsolution is: 600000
+Recursion count in expandsolution is: 1200000
+Recursion count in expandsolution is: 1800000
+Recursion count in expandsolution is: 600000
+Recursion count in expandsolution is: 1200000
+Recursion count in expandsolution is: 1800000
+Recursion count in expandsolution is: 600000
+Recursion count in expandsolution is: 1200000
+Recursion count in expandsolution is: 1800000
+Recursion count in expandsolution is: 600000
+Recursion count in expandsolution is: 1200000
+Recursion count in expandsolution is: 1800000
+Recursion count in expandsolution is: 600000
+Recursion count in expandsolution is: 1200000
+Recursion count in expandsolution is: 1800000
+Recursion count in expandsolution is: 600000
+Recursion count in expandsolution is: 1200000
+Recursion count in expandsolution is: 1800000
+Recursion count in expandsolution is: 600000
+Recursion count in expandsolution is: 1200000
+Recursion count in expandsolution is: 1800000
+Recursion count in expandsolution is: 600000
+Recursion count in expandsolution is: 1200000
+Recursion count in expandsolution is: 1800000
+Old v: 66.000000 new v: 53.273194 change ratio of initial state value is 0.807170
+State expanded: 0
+Initial 10 trials( 20.615206 secs.)  f: 53.273194
+Total number of backups 19999000
+Going to build components
+Recursion count in f_reachability is: 600000
+Recursion count in f_reachability is: 1200000
+Recursion count in f_reachability is: 1800000
+Recursion count in f_dfsR is: 600000
+Recursion count in f_dfsR is: 1200000
+Bad Error in f_dfsR!!!!. Node number is: -1 out of bounds.
+
+Recursion count in f_dfsR is: 1800000
+Recursion count in f_dfs is: 600000
+Recursion count in f_dfs is: 1200000
+Recursion count in f_dfs is: 1800000
+Components: 2
+elapsed time for building topological structure: 6.184901
+Total actions 3999998 per state 1.999999
+Solving components, no subdividing. Solving 2 components
+Actual total number of Parts=399
+Partitioned in: 1.635662 secs
+Total internal dependents = 10446248; Ext = 9553742
+Actual Value_iterate function in: 81.159531 secs
+Update time taken = 54.714134; Update iters time taken = 26.329862 secs
+Number of Backups for round-1 with ep_part=10.000000, ep_overall=0.000001:	355699872
+Number of new partition washes=29472, number of updates =147354935, number of update_iters=208344937
+Final Number of Backups for round-1 with ep_part=10.000000, ep_overall=0.000001:	0. Total_iter backups =0
+Component in Cached Iter completed in: 88.784706 secs
+Couldn't solve component: 1, in 10000 iterations. Error=139.998077; Time=88.784706
+The size of component: 1 is 1999999
+
+Biggest component size: 1999999
+2 ( 115.783173 secs.)  f: 53.273194 Converged!
+Number of solved components=1 and unreachable components=0
+Total number of backups: 19999001

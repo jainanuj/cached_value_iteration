@@ -6,4 +6,6 @@ sudo apt install linux-tools-5.0.0-23-generic
 sudo sh -c 'echo 1 >/proc/sys/kernel/perf_event_paranoid'
 sudo apt install make
 git clone https://github.com/circulosmeos/gdown.pl
+mkdir MDPs
+mkdir MDPs/evaluated
 ./download_MDPs
