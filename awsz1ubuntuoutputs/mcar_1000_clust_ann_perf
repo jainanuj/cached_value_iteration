@@ -1,0 +1,11 @@
+setrlimit set the stack size to desired - 8MB
+ Performance counter stats for './solve -p ../MDPs/evaluated/mcar_1000x1000.mdp -method ftvi':
+
+      35688.993455      task-clock (msec)         #    1.000 CPUs utilized          
+      142612532451      cycles                    #    3.996 GHz                    
+      139256636592      instructions              #    0.98  insn per cycle         
+        1335674226      cache-references          #   37.425 M/sec                  
+         674153170      cache-misses              #   50.473 % of all cache refs    
+
+      35.690567568 seconds time elapsed
+
