@@ -12,7 +12,7 @@
 #include "intqueue.h"
 #include "intheap.h"
 
-#define PART_SIZE  5000//6100       //3
+#define PART_SIZE  3//5000//6100       //3
 #define ARR_SIZE  1000000
 #define NUM_PARTS_IN_LEVEL1 1000
 
@@ -99,6 +99,7 @@ typedef struct level1_part_t {
     int *sub_parts;        //This is an array of part#s of sub parts belonging to this level1 part.
     int num_sub_parts;     //Number of sub_parts belonging to this level1 part.
     med_hash_t *my_local_dependents;
+    double convergence_factor;
 } level1_part_t;
 
 
@@ -114,6 +115,8 @@ typedef struct world_t {
     queue *part_queue;
     queue *part_level1_queue;
     bit_queue *part_level0_bit_queue;
+    bit_queue *part_level0_processing_bit_queue;
+    
 //    bit_queue *terminal_bit_queue;
 //    bit_queue *dead_bit_queue;
 //    bit_queue *planningStates;
