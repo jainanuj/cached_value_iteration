@@ -3,3 +3,7 @@ results/
 *.dSYM
 queuetester
 *.o
+cached_output_*
+op_*
+non_cached_op_*
+

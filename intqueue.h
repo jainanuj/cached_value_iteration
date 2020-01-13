@@ -72,6 +72,7 @@ int check_obj_present_in_q( queue *q, int obj);
 int queue_has_items(queue *q);
 int empty_queue( queue *q);
 int empty_bit_queue(bit_queue *bq);
+int bit_queue_has_items(bit_queue *bq);
 
 void print_bit_queue(bit_queue *bq, char *bit_queue_file);
 void Or_bit_queue(bit_queue *bq_dest, bit_queue *bq_to_add);

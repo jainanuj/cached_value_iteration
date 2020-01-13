@@ -170,6 +170,11 @@ int queue_has_items(queue *q)
     return q->numitems;
 }
 
+int bit_queue_has_items(bit_queue *bq)
+{
+    return bq->num_items;
+}
+
 /*********----------------------------------------------------**************/
 
 bit_queue *create_bit_queue( int max_items)
