@@ -9,7 +9,6 @@
 #include "cached_vi.h"
 #include <time.h>
 #include <sys/time.h>
-#include <omp.h>
 
 double heat_epsilon_partition_initial;
 double heat_epsilon_overall;
@@ -284,17 +283,12 @@ double value_iterate( world_t *w, double epsilon_partition_initial, double epsil
     while (level1_part_available_to_process(w))
     {
         level1_part = get_next_level1_part(w);
-        if (level1_part >= 0)
+        tmp = value_iterate_level1_partition( w, level1_part );
+        if (tmp > heat_epsilon_overall)
         {
-            tmp = value_iterate_level1_partition( w, level1_part );
-            if (tmp > heat_epsilon_overall)
-            {
-                add_level1_parts_deps_for_eval(w, level1_part);
-                if (w->level1_parts[level1_part].convergence_factor > heat_epsilon_overall)
-                    queue_add(w->part_level1_queue, level1_part);       //Add this level1 part back to the queue, as atleast one of it's sub parts evaluated with a high convergence factor. Therefore, this level1 part will need to be evaluated again.
-                //maxheat = tmp;
-            }
-        }       //If there was actually a level1 part to process.
+            add_level1_parts_deps_for_eval(w, level1_part);
+            //maxheat = tmp;
+        }
     }
     return tmp;
 }
@@ -305,55 +299,36 @@ double value_iterate_level1_partition( world_t *w, int level1_part )
     int i, l_part, next_level0_part;
     double  tmp, maxheat = 0;
     
-    w->level1_parts[level1_part].convergence_factor = heat_epsilon_overall;
-    clear_level0_queue(w);      //Only master thread does this. omp
-    clear_level0_processing_bit_queue(w);
+    clear_level0_queue(w);
     for (i=0; i< w->level1_parts[level1_part].num_sub_parts; i++ )
     {
         l_part = w->level1_parts[level1_part].sub_parts[i];
         if (check_dirty(w, l_part) )
         {
             add_level0_queue(w, l_part);
+            printf("added %d part to evaluate\n", l_part);
             clear_level0_dirty_flag(w, l_part);
         }
-    }  //Parallelize using workshare construct. omp
-    printf("No. of parts = %d\n", w->level1_parts[level1_part].num_sub_parts);
-    
-    #pragma omp parallel default(shared) private(next_level0_part, tmp)
+    }
+    while (part_available_to_process(w) )
     {
-        while (part_available_to_process(w) )       //Dpon't let this loop terminate for any thread until there is something being processed as even if there is no part to process new parts may appear as trhe processing partitions complete.|| bit_queue_has_items(w->part_level0_processing_bit_queue)
+        next_level0_part = get_next_part(w);
+        tmp = value_iterate_partition(w, next_level0_part);
+        w->new_partition_wash++;
+        w->parts[next_level0_part].washes++;
+        if (tmp > heat_epsilon_overall)
         {
-            #pragma omp critical (part_queue)
+            //Add local deps to queue. Mark global as dirty.
+            //add_level0_partition_deps_for_eval(w, next_level0_part);
+            if (w->part_queue->numitems > w->level1_parts[level1_part].num_sub_parts )
+                wlog(1, "storing too many items in level0 q. NumItems = %d\n",w->part_queue->numitems);
+            maxheat = tmp>maxheat ? tmp: maxheat;
+/*            if (w->parts[next_level0_part].convergence_factor > heat_epsilon_overall)
             {
-                next_level0_part = get_next_part(w);
-            }
-            
-            if (next_level0_part >= 0)
-                tmp = value_iterate_partition(w, next_level0_part);     //Sets a convergence factor if not set and performs VI with it.
-            else
-            {
-                printf("Couldn't get next part but there is something in processing so will wait. Next part=%d\n", next_level0_part);
-                continue;
-            }
-            #pragma omp critical (vi_level1_bookeeping)
-            {
-                w->new_partition_wash++;
-                w->parts[next_level0_part].washes++;
-                if (tmp > heat_epsilon_overall) //w->parts[next_level0_part].convergence_factor
-                {
-                    if (w->parts[next_level0_part].convergence_factor > heat_epsilon_overall)
-                        w->level1_parts[level1_part].convergence_factor = w->parts[next_level0_part].convergence_factor;
-                    if (w->part_queue->numitems > w->level1_parts[level1_part].num_sub_parts )
-                        wlog(1, "storing too many items in level0 q. NumItems = %d\n",w->part_queue->numitems);
-                    maxheat = tmp>maxheat ? tmp: maxheat;
-        /*            if (w->parts[next_level0_part].convergence_factor > heat_epsilon_overall)
-                    {
-                        add_partition_for_eval(w, next_level0_part);        //Add it back to the queue as even though it converged to convergence factor, the factor was bigger than final epsilon.
-                    }*/
-                }
-            }
+                add_partition_for_eval(w, next_level0_part);        //Add it back to the queue as even though it converged to convergence factor, the factor was bigger than final epsilon.
+            }*/
         }
-    }       //All threads join after this.
+    }
     return maxheat;
 }
 
@@ -379,19 +354,17 @@ double value_iterate_partition( world_t *w, int l_part )
     dep_part_hash = w->parts[l_part].my_ext_parts_states;
     //Iterate over all external states grouped by partitions they belong to.
     //Load their values from their respective partition arrays.
-#pragma omp critical (load_external_states)
+    while ( med_hash_hash_iterate( dep_part_hash, &index1, &index2,
+                                  &g_end_ext_partition, &l_end_ext_state, &val_state_action ))
     {
-        while ( med_hash_hash_iterate( dep_part_hash, &index1, &index2,
-                                      &g_end_ext_partition, &l_end_ext_state, &val_state_action ))
-        {
-#pragma omp atomic read
-            val_state_action->d = w->parts[g_end_ext_partition].values.elts[l_end_ext_state]; //Setting the value of that ext state
-        }
-        if (w->parts[l_part].convergence_factor == -1)
-            w->parts[l_part].convergence_factor = heat_epsilon_partition_initial;
-        else if ( (w->parts[l_part].convergence_factor > heat_epsilon_overall) && (w->parts[l_part].washes % 10 == 0) )
-            w->parts[l_part].convergence_factor /= 10;
+        val_state_action->d = w->parts[g_end_ext_partition].values.elts[l_end_ext_state]; //Setting the value of that ext state
     }
+    if (w->parts[l_part].convergence_factor == -1)
+        w->parts[l_part].convergence_factor = heat_epsilon_partition_initial;
+    else if ( (w->parts[l_part].convergence_factor > heat_epsilon_overall) && (w->parts[l_part].washes % 10 == 0) )
+        w->parts[l_part].convergence_factor /= 10;
+    
+    printf("Starting to process %d part with conv factor %f. \n", l_part, w->parts[l_part].convergence_factor);
     max_heat = 0;
     //First iteration of the partition.
     for ( i = 0; i < state_cnt; i++ )
@@ -402,7 +375,15 @@ double value_iterate_partition( world_t *w, int l_part )
             delta = value_update( w, l_part, l_state );
         max_heat = fabs( delta ) > max_heat ? fabs( delta ): max_heat;
     }
-#pragma omp atomic update
+    if (l_part == 0)
+    {
+        printf("After first iteration for part 0, conv factor = %f. Max heat = %f\n", w->parts[l_part].convergence_factor, max_heat);
+        for (i = 0; i < state_cnt; i++)
+        {
+            l_state = pp->variable_ordering[i];
+            printf("The value part,state %d,%d is:%f\n",l_part,l_state,w->parts[l_part].values.elts[l_state]);
+        }
+    }
     w->val_update_time += (float)(clock() - update_start_time)/CLOCKS_PER_SEC;
     
     update_start_time = clock();
@@ -425,15 +406,12 @@ double value_iterate_partition( world_t *w, int l_part )
                     delta = value_update_iters( w, l_part, l_state );
                 part_internal_heat = fabs( delta ) > part_internal_heat ? fabs( delta ): part_internal_heat;
             }
-        #pragma omp atomic update
             w->parts[ l_part ].washes++;
             numPartitionIters++;
             if (part_internal_heat > max_heat)
                 max_heat = part_internal_heat;
             if (part_internal_heat < w->parts[l_part].convergence_factor) //excluding (numPartitionIters > MAX_ITERS_PP) ||
             {
-                if (l_part == 0)
-                    printf("In partition 0 about to break as breached conv factor.\n");
                 //if (numPartitionIters > 1)
                 //if (numPartitionIters >= 20)
                 //  if ( verbose ) { wlog( 1, "Partition %d was processed %d number of times. Part Internal Heat is: %.6f. Max heat to begin with is: %.6f \n", l_part, numPartitionIters, part_internal_heat, max_heat ); }
@@ -441,40 +419,25 @@ double value_iterate_partition( world_t *w, int l_part )
             }
             if (l_part == 0)
             {
-                if (numPartitionIters % 100 == 0)
+                if (numPartitionIters % 2 == 0)
                 {
                     printf("In partition 0, number of iters = %d; conv factor = %f; part_internal = %f\n", numPartitionIters, w->parts[l_part].convergence_factor, part_internal_heat);
                 }
             }
+
         }
     }
     else if (w->parts[l_part].convergence_factor > heat_epsilon_overall)
-    {
-    #pragma omp atomic update
         w->parts[l_part].convergence_factor /= 10;
-    }
 
-#pragma omp atomic update
     w->val_update_iters_time += (float)(clock() - update_start_time)/CLOCKS_PER_SEC;
 
-    #pragma omp critical (vi_level0_deps_add)
+    if (max_heat > heat_epsilon_overall) //w->parts[next_level0_part].convergence_factor
     {
-        if (max_heat > heat_epsilon_overall) //w->parts[next_level0_part].convergence_factor
-        {
-            //Add local deps to queue. Mark global as dirty.
-            if (max_heat > w->parts[l_part].convergence_factor)
-                add_level0_partition_deps_for_eval(w, l_part, 1);     //Add the dependents immediately to queue.
-            else
-                add_level0_partition_deps_for_eval(w, l_part, 0);     //This is just a deferred add. only setting the dirty bit not adding to queue.
-        }
+        //Add local deps to queue. Mark global as dirty.
+            add_level0_partition_deps_for_eval(w, l_part);     //This is just a deferred add. only setting the dirty bit not adding to queue.
     }
 
-#pragma omp critical (processing_bit_queue)
-    {
-        printf("Clearing partition %d processing flag\n", l_part);
-        clear_level0_processing_flag(w, l_part);
-    }
-    
     return max_heat;
 }
 
@@ -485,10 +448,8 @@ int level1_part_available_to_process(world_t *w)
 int get_next_level1_part(world_t *w)
 {
     int next_level1_partition;
-    if (queue_pop(w->part_level1_queue, &next_level1_partition))
-        return next_level1_partition;
-    else
-        return -1;
+    queue_pop(w->part_level1_queue, &next_level1_partition);
+    return next_level1_partition;
 }
 void add_level1_parts_deps_for_eval(world_t *w, int level1_part_changed)
 {
@@ -510,22 +471,10 @@ int clear_level0_queue(world_t *w)
 {
     return empty_queue(w->part_queue);
 }
-int clear_level0_processing_bit_queue(world_t *w)
-{
-    return empty_bit_queue(w->part_level0_processing_bit_queue);
-}
-
-
 unsigned long check_dirty(world_t *w, int l_part)
 {
     return check_bit_obj_present(w->part_level0_bit_queue, l_part);
 }
-
-unsigned long check_dirty_level0_processing(world_t *w, int l_part)
-{
-    return check_bit_obj_present(w->part_level0_processing_bit_queue, l_part);
-}
-
 int add_level0_queue(world_t *w, int l_part)
 {
     return queue_add(w->part_queue, l_part);
@@ -534,11 +483,6 @@ int clear_level0_dirty_flag(world_t *w, int l_part)
 {
     return bit_queue_pop(w->part_level0_bit_queue, l_part);
 }
-int clear_level0_processing_flag(world_t *w, int l_part)
-{
-    return bit_queue_pop(w->part_level0_processing_bit_queue, l_part);
-}
-
 int part_available_to_process(world_t *w)
 {
     return queue_has_items(w->part_queue);
@@ -546,29 +490,10 @@ int part_available_to_process(world_t *w)
 int get_next_part(world_t *w)
 {
     int next_partition;
-    if (queue_pop(w->part_queue, &next_partition))
-    {
-        //OMP
-        //Check next_partition in processing queue.
-//        #pragma omp critical (processing_bit_queue)
-        if (check_dirty_level0_processing(w, next_partition) == 0)
-        {
-            printf("Setting partition %d dirty\n", next_partition);
-            set_dirty_level0_processing(w, next_partition);
-            return next_partition;
-        }
-        else
-        {
-            printf("Found %d partition is already in processing so putting back to queue\n", next_partition);
-            queue_add(w->part_queue, next_partition);
-        }
-        //If not present add it and return.
-        //If present, in processing queue, put it back to the end of part queue
-        //check next item on queue.
-    }
-    return -1;
+    queue_pop(w->part_queue, &next_partition);
+    return next_partition;
 }
-void add_level0_partition_deps_for_eval(world_t *w, int l_part_changed, int add_immediate)
+void add_level0_partition_deps_for_eval(world_t *w, int l_part_changed)
 {
     int l_start_part;
     med_hash_t *dep_part_hash;
@@ -579,10 +504,7 @@ void add_level0_partition_deps_for_eval(world_t *w, int l_part_changed, int add_
     index1 = 0;
     while ( med_hash_iterate( dep_part_hash, &index1, &l_start_part, &v ) )
     {
-        if (add_immediate == 1)
-            queue_add(w->part_queue, l_start_part);
-        else
-            set_dirty(w, l_start_part);
+        queue_add(w->part_queue, l_start_part);
     }
     
     dep_part_hash = w->parts[ l_part_changed ].my_global_dependents;
@@ -604,11 +526,6 @@ int set_dirty(world_t *w, int l_part)
     return queue_add_bit(w->part_level0_bit_queue, l_part);
 }
 
-int set_dirty_level0_processing(world_t *w, int l_part)
-{
-    return queue_add_bit(w->part_level0_processing_bit_queue, l_part);
-}
-
 //Need to minimize cost (not maximize reward)
 double value_update( world_t *w, int l_part, int l_state )
 {
@@ -618,7 +535,6 @@ double value_update( world_t *w, int l_part, int l_state )
     if (w->parts[l_part].states[l_state].goal == 1)
         return 0;
     
-#pragma omp atomic read
     cval = w->parts[ l_part ].values.elts[ l_state ];
     
     min_action = 0;
@@ -634,18 +550,14 @@ double value_update( world_t *w, int l_part, int l_state )
             min_action = action;
         }
     }
-#pragma omp atomic write
     w->parts[l_part].states[l_state].bestAction = min_action;       //update best Action for this state.
     //Commenting Out - ANUJ - max_value can be -ve. This is when we have a cost to pay for the action.
     //  if ( max_value < 0 ) {
     //    fprintf( stderr, "WARGH!\n" );
     //    exit( 0 );
     //  }
-#pragma omp atomic capture
-    {
-        w->parts[ l_part ].values.elts[ l_state ] = value;       //Update the V(s) for this state.
-        w->num_value_updates++;
-    }
+    w->parts[ l_part ].values.elts[ l_state ] = value;       //Update the V(s) for this state.
+    w->num_value_updates++;
     if (value <= cval)
         return cval - value;
     else
@@ -670,7 +582,6 @@ double reward_or_value( world_t *w, int l_part, int l_state, int a ) {
     
     tmp = get_remainder( w, l_part, l_state, a );     //Getting external dependencies.
     
-#pragma omp atomic write
     st->external_dep_vals[a] = tmp;      //Cache the values of the external deps in the state.
     value += tmp;
     
@@ -709,7 +620,7 @@ double get_remainder( world_t *w, int l_part, int l_state, int action ) {
     int i, dep_cnt;
     trans_t *tt;
     entry_t *ext_et;
-    double val_hash2, tmp;
+    double val_hash2;
     
     val_hash2 = 0;
     tt = &( w->parts[ l_part ].states[ l_state ].tps[ action ] );
@@ -718,9 +629,7 @@ double get_remainder( world_t *w, int l_part, int l_state, int action ) {
     
     for ( i=0; i<dep_cnt; i++ )
     {
-#pragma omp atomic read
-        tmp = ext_et[ i ].entry * (w->parts[l_part].states[l_state].external_state_vals[action][i]->d);
-        val_hash2 += tmp;
+        val_hash2 += ext_et[ i ].entry * (w->parts[l_part].states[l_state].external_state_vals[action][i]->d);
 #ifdef __TEST__
         if  (ext_et[ i ].col == -1)
         {
@@ -774,7 +683,7 @@ double value_update_iters( world_t *w, int l_part, int l_state )
     
     if (w->parts[l_part].states[l_state].goal == 1)
         return 0;
-#pragma omp atomic read
+    
     cval = w->parts[ l_part ].values.elts[ l_state ];
     
     min_action = 0;
@@ -793,11 +702,9 @@ double value_update_iters( world_t *w, int l_part, int l_state )
 //        fprintf( stderr, "WARGH!\n" );
 //        exit( 0 );
 //    }
-#pragma omp atomic capture
-    {
-        w->parts[ l_part ].values.elts[ l_state ] = value;       //Update the V(s,a) for this state.
-        w->num_value_updates_iters++;
-    }
+    
+    w->parts[ l_part ].values.elts[ l_state ] = value;       //Update the V(s,a) for this state.
+    w->num_value_updates_iters++;
     
     if (value <= cval)
         return cval - value;
@@ -809,7 +716,7 @@ double value_update_iters( world_t *w, int l_part, int l_state )
 
 double reward_or_value_iters( world_t *w, int l_part, int l_state, int a )
 {
-    double value, tmp;//, tmp;
+    double value;//, tmp;
     state_t *st;
     st = &( w->parts[ l_part ].states[ l_state ] );
     
@@ -818,10 +725,7 @@ double reward_or_value_iters( world_t *w, int l_part, int l_state, int a )
                              st->tps[ a ].int_deps,
                              &(w->parts[ l_part ].values) );
     /*#error This needs to grok the global vs. local state distinction.  Wow.  How could it possibly not do that??? */
-#pragma omp atomic read
-    tmp = st->external_dep_vals[a];
-    
-    value += tmp;      //External deps
+    value += st->external_dep_vals[a];      //External deps
     
     /* we have to do this because we negated the A matrix! */
     //value = -value + st->tps[ a ].reward;
@@ -832,13 +736,11 @@ double reward_or_value_iters( world_t *w, int l_part, int l_state, int a )
 double entries_vec_mult( entry_t *et, int cnt, vec_t *b )
 {
     int j;
-    double tmpr, tmpbuf;
+    double tmpr;
     
     tmpr = 0;
     for ( j=0; j<cnt; j++ ) {
-#pragma omp atomic read
-        tmpbuf = et[j].entry * b->elts[et[j].col];
-        tmpr += tmpbuf;
+        tmpr += et[j].entry * b->elts[et[j].col];
     }
     
     return tmpr;
