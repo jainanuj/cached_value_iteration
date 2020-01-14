@@ -368,6 +368,7 @@ double value_iterate_partition( world_t *w, int l_part )
     
     int g_end_ext_partition, l_end_ext_state, index1 = 0, index2 = 0;
     val_t *val_state_action;
+    double tempvalread = 0.0;
     /*   FILE *fp; */
     
     
@@ -384,8 +385,12 @@ double value_iterate_partition( world_t *w, int l_part )
         while ( med_hash_hash_iterate( dep_part_hash, &index1, &index2,
                                       &g_end_ext_partition, &l_end_ext_state, &val_state_action ))
         {
-#pragma omp atomic read
-            val_state_action->d = w->parts[g_end_ext_partition].values.elts[l_end_ext_state]; //Setting the value of that ext state
+#pragma omp atomic capture
+            {
+                tempvalread = w->parts[g_end_ext_partition].values.elts[l_end_ext_state]; //Setting the value of that ext state
+                val_state_action->d = tempvalread;
+            }
+            printf("External value for part:%d with end_part:%d, end_state:%d has value with temp:%f and saved:%f\n",l_part,g_end_ext_partition,l_end_ext_state,tempvalread,val_state_action->d);
         }
         if (w->parts[l_part].convergence_factor == -1)
             w->parts[l_part].convergence_factor = heat_epsilon_partition_initial;
@@ -399,7 +404,10 @@ double value_iterate_partition( world_t *w, int l_part )
         l_state = pp->variable_ordering[i];
         delta = 0;
         if ( (w->parts[l_part].states[l_state].Terminal != 1) && (w->parts[l_part].states[l_state].Terminal !=5) )
+        {
+            printf("INITIAL value part,state %d,%d is:%f\n",l_part,l_state,w->parts[l_part].values.elts[l_state]);
             delta = value_update( w, l_part, l_state );
+        }
         max_heat = fabs( delta ) > max_heat ? fabs( delta ): max_heat;
     }
     
@@ -635,6 +643,8 @@ double value_update( world_t *w, int l_part, int l_state )
     min_action = 0;
     value = reward_or_value( w, l_part, l_state, 0 );
     
+    printf("Value COMPUTED for part:%d, state:%d, action:%d is:%f\n",l_part,l_state,0,value);
+    
     /* remember that there is an action bias! */
     nacts = w->parts[ l_part ].states[ l_state ].num_actions;
     for (action=1; action<nacts; action++)
@@ -645,6 +655,7 @@ double value_update( world_t *w, int l_part, int l_state )
             min_action = action;
         }
     }
+    printf("MINValue COMPUED for part:%d, state:%d, action:%d is:%f. CVal was:%f\n",l_part,l_state,min_action,value,cval);
 #pragma omp atomic write
     w->parts[l_part].states[l_state].bestAction = min_action;       //update best Action for this state.
     //Commenting Out - ANUJ - max_value can be -ve. This is when we have a cost to pay for the action.
