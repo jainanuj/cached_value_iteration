@@ -1,8 +1,7 @@
 #makefile
 
 solve: 	solve.o lao.o rlao.o blao.o nlao.o pvi.o blao_o.o graph.o stack.o statequeue.o track.o vi.o backup.o rtdp.o lrtdp.o frtdp.o pi.o top.o hdp.o qlearning.o ps.o tql.o rmax.o trmax.o fdp.o ips.o atvi.o math.o ftvi.o brtdp.o vpirtdp.o components.o setgoal.o cache_aware_vi.o cached_vi.o intqueue.o logger.o med_hash.o intheap.o test_fns.o
-	icc -g -qopenmp -Wl,-stack_size,6000000 -o solve solve.o lao.o rlao.o blao.o nlao.o pvi.o blao_o.o graph.o stack.o statequeue.o track.o vi.c backup.c rtdp.o lrtdp.o frtdp.o pi.o top.o hdp.o math.o qlearning.o ps.o tql.o rmax.o trmax.o fdp.o ips.o atvi.o ftvi.o brtdp.o vpirtdp.o components.o setgoal.o cache_aware_vi.o cached_vi.o intqueue.o logger.o med_hash.o intheap.o test_fns.o -lm -pthread
-
+	gcc -g -Wl,-stack_size,6000000 -o solve solve.o lao.o rlao.o blao.o nlao.o pvi.o blao_o.o graph.o stack.o statequeue.o track.o vi.c backup.c rtdp.o lrtdp.o frtdp.o pi.o top.o hdp.o math.o qlearning.o ps.o tql.o rmax.o trmax.o fdp.o ips.o atvi.o ftvi.o brtdp.o vpirtdp.o components.o setgoal.o cache_aware_vi.o cached_vi.o intqueue.o logger.o med_hash.o intheap.o test_fns.o -lm -pthread
 #-lpthread
 
 clean:
@@ -112,10 +111,10 @@ math.o:	math.c math.c
 	gcc -g -c math.c
 
 cache_aware_vi.o:cache_aware_vi.c cache_aware_vi.h
-	icc -g -c -qopenmp cache_aware_vi.c
+	gcc -g -c cache_aware_vi.c
 
 cached_vi.o:cached_vi.c cached_vi.h
-	icc -g -c -qopenmp cached_vi.c 
+	gcc -g -c cached_vi.c 
 
 intqueue.o:intqueue.c intqueue.h 
 	gcc -g -c intqueue.c
