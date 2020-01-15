@@ -678,6 +678,7 @@ double value_update( world_t *w, int l_part, int l_state )
 }
 double reward_or_value( world_t *w, int l_part, int l_state, int a ) {
     double value, tmp;
+    int j; double tmpbufinit, tmpinitval = 0;entry_t *et; vec_t *b;
     state_t *st;
     st = &( w->parts[ l_part ].states[ l_state ] );
     
@@ -685,28 +686,42 @@ double reward_or_value( world_t *w, int l_part, int l_state, int a ) {
     value = entries_vec_mult( st->tps[ a ].entries,
                              st->tps[ a ].int_deps,
                              &(w->parts[ l_part ].values) );
-    if (l_part ==0 && l_state == 1 && a == 0)
-        printf("REWORVALUE - Value from int deps for part:%d, state:%d, action:%d is:%f\n",l_part, l_state,a,value);
+    
+    if (l_part ==0 && l_state == 1 && a == 0 && w->parts[l_part].convergence_factor >= 10)
+    {
+        et = st->tps[a].entries; b= &(w->parts[l_part].values);
+        printf("REWORVALUE - starting to evaluate internal deps:%d; part:%d; state:%d;\n",st->tps[a].int_deps,l_part,l_state);
+        for ( j=0; j<st->tps[a].int_deps; j++ ) {
+            
+#pragma omp atomic read
+            tmpbufinit = et[j].entry * b->elts[et[j].col];
+            tmpinitval += tmpbufinit;
+            printf("REWORVALUE - j:%d;tmpbufinit:%f;prob:%f;trans_state:%d;trans_value:%f;tmpinitval:%f\n",j,tmpbufinit,et[j].entry,et[j].col,
+                   b->elts[et[j].col],tmpinitval);
+        }
+
+        printf("REWORVALUE - Value from int deps:%d for part:%d, state:%d, action:%d is:%f\n",st->tps[ a ].int_deps,l_part, l_state,a,value);
+    }
 
     /* add in external deps! */
     
     /*#error This needs to grok the global vs. local state distinction.  Wow.  How could it possibly not do that??? */
     
     tmp = get_remainder( w, l_part, l_state, a );     //Getting external dependencies.
-    if (l_part ==0 && l_state == 1 && a == 0)
+    if (l_part ==0 && l_state == 1 && a == 0 && w->parts[l_part].convergence_factor >= 10)
         printf("REWORVALUE - Value from ext deps for part:%d, state:%d, action:%d is:%f\n",l_part, l_state,a,tmp);
 
 #pragma omp atomic write
     st->external_dep_vals[a] = tmp;      //Cache the values of the external deps in the state.
     value += tmp;
-    if (l_part ==0 && l_state == 1 && a == 0)
+    if (l_part ==0 && l_state == 1 && a == 0 && w->parts[l_part].convergence_factor >= 10)
         printf("REWORVALUE - Sum from int & ext deps for part:%d, state:%d, action:%d is:%f\n",l_part, l_state,a,value);
 
     
     /* we have to do this because we negated the A matrix! */
     //value = -value + st->tps[ a ].reward;
     value = value + st->tps[ a ].reward;        //Not negating.
-    if (l_part ==0 && l_state == 1 && a == 0)
+    if (l_part ==0 && l_state == 1 && a == 0 && w->parts[l_part].convergence_factor >= 10)
         printf("REWORVALUE - Value from int ext deps & reward for part:%d, state:%d, action:%d is:%f\n",l_part, l_state,a,value);
 
     return value;
@@ -868,6 +883,7 @@ double entries_vec_mult( entry_t *et, int cnt, vec_t *b )
     
     tmpr = 0;
     for ( j=0; j<cnt; j++ ) {
+        
 #pragma omp atomic read
         tmpbuf = et[j].entry * b->elts[et[j].col];
         tmpr += tmpbuf;
