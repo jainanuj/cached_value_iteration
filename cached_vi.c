@@ -321,7 +321,7 @@ double value_iterate_level1_partition( world_t *w, int level1_part )
     
     #pragma omp parallel default(shared) private(next_level0_part, tmp)
     {
-        while (part_available_to_process(w) )       //Dpon't let this loop terminate for any thread until there is something being processed as even if there is no part to process new parts may appear as trhe processing partitions complete.|| bit_queue_has_items(w->part_level0_processing_bit_queue)
+        while (part_available_to_process(w) || bit_queue_has_items(w->part_level0_processing_bit_queue) )       //Dpon't let this loop terminate for any thread until there is something being processed as even if there is no part to process new parts may appear as trhe processing partitions complete.
         {
             #pragma omp critical (part_queue)
             {
@@ -570,7 +570,7 @@ int part_available_to_process(world_t *w)
 int get_next_part(world_t *w)
 {
     int next_partition;
-    if (queue_pop(w->part_queue, &next_partition))
+    while (queue_pop(w->part_queue, &next_partition))
     {
         //OMP
         //Check next_partition in processing queue.
