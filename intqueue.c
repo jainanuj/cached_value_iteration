@@ -146,7 +146,7 @@ int queue_pop(queue *q, int *result )
 //    t_start = whenq();
     if ( (q->numitems <= 0) || (q->start_item_ptr < 0) )
     {
-        fprintf( stderr, "Hey! queue's empty!\n" );
+        //fprintf( stderr, "Hey! queue's empty!\n" );
         return 0;
     }
     
