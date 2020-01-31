@@ -635,24 +635,23 @@ double value_update( world_t *w, int l_part, int l_state )
             min_action = action;
         }
     }
+    
+    
+    if (value <= cval)                      //For minimization it is <
+    {
 #pragma omp atomic write
-    w->parts[l_part].states[l_state].bestAction = min_action;       //update best Action for this state.
-    //Commenting Out - ANUJ - max_value can be -ve. This is when we have a cost to pay for the action.
-    //  if ( max_value < 0 ) {
-    //    fprintf( stderr, "WARGH!\n" );
-    //    exit( 0 );
-    //  }
+        w->parts[l_part].states[l_state].bestAction = min_action;       //update best Action for this state.
 #pragma omp atomic write
         w->parts[ l_part ].values.elts[ l_state ] = value;       //Update the V(s) for this state.
 #pragma omp atomic update
         w->num_value_updates++;
-
-    if (value <= cval)                      //For minimization it is <
         return cval - value;
 //    else
 //    {
 //        return value - cval;
 //    }
+    }
+    return 0;
     
 }
 double reward_or_value( world_t *w, int l_part, int l_state, int a ) {
@@ -795,17 +794,19 @@ double value_update_iters( world_t *w, int l_part, int l_state )
 //        fprintf( stderr, "WARGH!\n" );
 //        exit( 0 );
 //    }
+    if (value <= cval)          //For minimization <
+    {
 #pragma omp atomic write
         w->parts[ l_part ].values.elts[ l_state ] = value;       //Update the V(s,a) for this state.
 #pragma omp atomic update
         w->num_value_updates_iters++;
-    
-    if (value <= cval)          //For minimization <
         return cval - value;
 //    else
 //    {
 //        return value - cval;
 //    }
+    }
+    return 0;
 }
 
 double reward_or_value_iters( world_t *w, int l_part, int l_state, int a )
