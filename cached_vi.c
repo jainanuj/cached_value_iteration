@@ -58,31 +58,38 @@ void solve_using_prioritized_vi( world_t *w, double epsilon_partition, double ep
 
 int pick_part_and_wash_it( world_t *w )
 {
-    int l_part_num;
+    int l_part_num;//, i;
     float heat_left;
     
     l_part_num = pick_partition( w );
     if ( l_part_num == -1 ) {
+        printf("No partition picked\n");
         /* either there was an error, or there isn't any more heat. */
         return 0;
     }
     
     w->parts_processed++;
     w->parts[ l_part_num ].visits++;
-    
+//    printf("Going to VI, partition:%d\n",l_part_num);
     heat_left = value_iterate_partition( w, l_part_num );
         /*     fprintf( stderr, "%.4f\n", maxheat ); */
+//    printf("Heat left in part:%d is:%f\n",l_part_num,heat_left);
     
     update_partition_potentials( w, l_part_num, heat_left );
     
     heap_add( w->part_heap, l_part_num );
+ //   printf("No. of partitions on heap:%d\n",w->part_heap->numitems);
+/*    for (i=0; i<w->part_heap->numitems; i++)
+    {
+        printf("Heat for partition:%d is %f\n",w->part_heap->items[i], w->parts[w->part_heap->items[i]].heat);
+    }*/
     
     return 1;
 }
 
 int pick_partition( world_t *w )
 {
-    int l_part_num, result;
+    int l_part_num, result;//, i;
     float heat;
     
     /* the 0 here indicates the position of the element we want to
@@ -94,7 +101,12 @@ int pick_partition( world_t *w )
     }
     
     heat = part_heat( w, l_part_num );
-    
+//    printf("Heat of item on top:%d is %f\n",l_part_num,heat);
+/*    for (i=0; i<w->part_heap->numitems; i++)
+    {
+        printf("Heat for partition:%d is %f\n",w->part_heap->items[i], w->parts[w->part_heap->items[i]].heat);
+    }*/
+
     if ( heat <  heat_epsilon_overall) {
         /*     if ( verbose ) { */
         /*       wlog( 1, "\n\nNo more heat. All done.\n\n\n" ); */
@@ -531,14 +543,17 @@ double value_update( world_t *w, int l_part, int l_state )
     //    fprintf( stderr, "WARGH!\n" );
     //    exit( 0 );
     //  }
-    w->parts[ l_part ].values.elts[ l_state ] = value;       //Update the V(s) for this state.
-    w->num_value_updates++;
-    if (value <= cval)
-        return cval - value;
-    else
+    if (value <= cval)      //For minimization
     {
-        return value - cval;
+        w->parts[ l_part ].values.elts[ l_state ] = value;       //Update the V(s) for this state.
+        w->num_value_updates++;
+        return cval - value;
     }
+//    else
+//    {
+//        return value - cval;
+//    }
+    return 0;
     
 }
 double reward_or_value( world_t *w, int l_part, int l_state, int a ) {
@@ -678,15 +693,18 @@ double value_update_iters( world_t *w, int l_part, int l_state )
 //        exit( 0 );
 //    }
     
-    w->parts[ l_part ].values.elts[ l_state ] = value;       //Update the V(s,a) for this state.
-    w->num_value_updates_iters++;
     
-    if (value <= cval)
+    if (value <= cval)      //was < for minimization
+    {
+        w->parts[ l_part ].values.elts[ l_state ] = value;       //Update the V(s,a) for this state.
+        w->num_value_updates_iters++;
         return cval - value;
-    else
+    }
+/*    else
     {
         return value - cval;
-    }
+    }*/
+    return 0;
 }
 
 double reward_or_value_iters( world_t *w, int l_part, int l_state, int a )
@@ -734,6 +752,7 @@ double get_heat( world_t *w, int l_part, int l_state ) {
     could_be = reward_or_value_no_cache( w, l_part, l_state, 0 );
     if (could_be < cur)         // < for minimization
         heat = cur - could_be;      // cur - could_be for minimization
+        //heat = could_be - cur;
     
     nacts = w->parts[ l_part ].states[ l_state ].num_actions;
     for ( action=1; action<nacts; action++ ) {
@@ -741,6 +760,7 @@ double get_heat( world_t *w, int l_part, int l_state ) {
         could_be = reward_or_value_no_cache( w, l_part, l_state, action );
         if (could_be < cur)         // < for minimization
             tmp = cur - could_be;       // cur - could_be for minimization
+            //tmp = could_be - cur;
         heat = tmp>heat?tmp:heat;
     }
     
