@@ -9,6 +9,7 @@
 #include "cached_vi.h"
 #include <time.h>
 #include <sys/time.h>
+#include <omp.h>
 
 double heat_epsilon_partition_initial;
 double heat_epsilon_overall;
@@ -340,7 +341,7 @@ double value_iterate_partition( world_t *w, int l_part )
     int numPartitionIters = 0;
     clock_t update_start_time;
     
-    int g_end_ext_partition, l_end_ext_state, index1 = 0, index2 = 0;
+    int g_end_ext_partition, l_end_ext_state, index1 = 0, index2 = 0;int chunk;
     val_t *val_state_action;
     /*   FILE *fp; */
     
@@ -363,8 +364,12 @@ double value_iterate_partition( world_t *w, int l_part )
     else if ( (w->parts[l_part].convergence_factor > heat_epsilon_overall) && (w->parts[l_part].washes % 10 == 0) )
         w->parts[l_part].convergence_factor /= 10;
         
-    max_heat = 0;
+    max_heat = 0;chunk = state_cnt/8;
     //First iteration of the partition.
+
+#pragma omp parallel for default(shared) private(i, l_state, delta)  \
+schedule(dynamic,chunk)      \
+reduction(max:max_heat)
     for ( i = 0; i < state_cnt; i++ )
     {
         l_state = pp->variable_ordering[i];
@@ -388,6 +393,10 @@ double value_iterate_partition( world_t *w, int l_part )
             //It attains value of max heat in that iteration and keeps on reducing with every iteration.
             //It signifies that we are making progress within the partition.
             part_internal_heat = 0;
+
+#pragma omp parallel for default(shared) private(i, l_state, delta)  \
+schedule(dynamic,chunk)      \
+reduction(max:part_internal_heat)
             for ( i = 0; i < state_cnt; i++ )
             {
                 l_state = pp->variable_ordering[i];
@@ -525,21 +534,16 @@ double value_update( world_t *w, int l_part, int l_state )
             min_action = action;
         }
     }
-    w->parts[l_part].states[l_state].bestAction = min_action;       //update best Action for this state.
-    //Commenting Out - ANUJ - max_value can be -ve. This is when we have a cost to pay for the action.
-    //  if ( max_value < 0 ) {
-    //    fprintf( stderr, "WARGH!\n" );
-    //    exit( 0 );
-    //  }
-    w->parts[ l_part ].values.elts[ l_state ] = value;       //Update the V(s) for this state.
-    w->num_value_updates++;
-    if (value <= cval)
-        return cval - value;
-    else
+
+    if (value <= cval)                      //For minimization it is <
     {
-        return value - cval;
+        w->parts[l_part].states[l_state].bestAction = min_action;       //update best Action for this state.
+        w->parts[ l_part ].values.elts[ l_state ] = value;       //Update the V(s) for this state.
+        w->num_value_updates++;
+        return cval - value;
     }
-    
+    return 0;
+
 }
 double reward_or_value( world_t *w, int l_part, int l_state, int a ) {
     double value, tmp;
@@ -673,20 +677,14 @@ double value_update_iters( world_t *w, int l_part, int l_state )
             min_action = action;
         }
     }
-//    if ( min_value < 0 ) {
-//        fprintf( stderr, "WARGH!\n" );
-//        exit( 0 );
-//    }
     
-    w->parts[ l_part ].values.elts[ l_state ] = value;       //Update the V(s,a) for this state.
-    w->num_value_updates_iters++;
-    
-    if (value <= cval)
-        return cval - value;
-    else
+    if (value <= cval)          //For minimization <
     {
-        return value - cval;
+        w->parts[ l_part ].values.elts[ l_state ] = value;       //Update the V(s,a) for this state.
+        w->num_value_updates_iters++;
+        return cval - value;
     }
+    return 0;
 }
 
 double reward_or_value_iters( world_t *w, int l_part, int l_state, int a )
