@@ -14,7 +14,7 @@
 double heat_epsilon_final = heat_epsilon_final_def;
 double heat_epsilon_initial = heat_epsilon_initial_def;
 extern char       gInputFileName[];
-//#define CLUSTERED
+#define CLUSTERED
 
 
 double cache_aware_vi(struct StateListNode *list, int MaxIter, int round, int component_size)
@@ -24,6 +24,10 @@ double cache_aware_vi(struct StateListNode *list, int MaxIter, int round, int co
     double heat_epsilon_current = heat_epsilon_final;
     float iter_count = 0;
     unsigned long total_updates = 0, total_updates_iters = 0;
+    struct timeval tInitial;
+    struct timeval tFinal;
+    double timeDay;
+
     
     double epsilon_partition_initial, epsilon_overall, time;
     clock_t compStartTime;
@@ -68,12 +72,13 @@ double cache_aware_vi(struct StateListNode *list, int MaxIter, int round, int co
     w->num_value_updates = 0; w->num_value_updates_iters = 0; w->new_partition_wash = 0;
     w->val_update_time = 0; w->val_update_iters_time = 0;
     
-    epsilon_partition_initial = heat_epsilon_final; //10; //heat_epsilon_initial;
+    epsilon_partition_initial = 10; //10; //heat_epsilon_initial;
     epsilon_overall = heat_epsilon_final;
     init_level1_part_queue(w);
     init_level0_bit_queue(w);
     
     compStartTime = clock();
+    gettimeofday(&tInitial, NULL);
 /*    retVal = value_iterate(w, 1000, 1000);
     init_level1_part_queue(w);
     init_level0_bit_queue(w);
@@ -102,10 +107,13 @@ double cache_aware_vi(struct StateListNode *list, int MaxIter, int round, int co
 //    init_level1_part_queue(w);
 //    init_level0_bit_queue(w);
     retVal = value_iterate(w, epsilon_partition_initial, epsilon_overall);
+//    solve_using_prioritized_vi( w, epsilon_overall, epsilon_overall );
 //    solve_using_prioritized_vi( w, epsilon_partition, epsilon_overall );
-//    solve_using_prioritized_vi( w, epsilon_partition, epsilon_overall );
+    gettimeofday(&tFinal, NULL);
+    timeDay = (tFinal.tv_sec - tInitial.tv_sec) + (float)(tFinal.tv_usec - tInitial.tv_usec) / 1000000;
+
     time = (float)(clock()-compStartTime)/CLOCKS_PER_SEC;
-    printf("Actual Value_iterate function in: %f secs\n", time);
+    printf("Actual Value_iterate function in: %f secs. As per day: %f secs\n", time, timeDay);
     printf("Update time taken = %f; Update iters time taken = %f secs\n", w->val_update_time, w->val_update_iters_time);
 
 /*    init_level1_part_queue(w);
@@ -154,7 +162,7 @@ double cache_aware_vi(struct StateListNode *list, int MaxIter, int round, int co
     wlog(1, "Final Number of Backups for round-%d with ep_part=%6f, ep_overall=%6f:\t%lu. Total_iter backups =%lu\n", round, epsilon_partition_initial, epsilon_overall, total_updates, total_updates_iters);
 
 #ifndef CLUSTERED
-    save_resulting_vector(w, "cached_output_noclust", round, component_size);
+    save_resulting_vector(w, "cached_output", round, component_size);
 #else
     save_resulting_vector(w, "cached_output_clust_ann", round, component_size);
 #endif
