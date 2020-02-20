@@ -62,6 +62,9 @@ int queue_add_bit( bit_queue *q, int obj );
 //int bit_queue_has_items(bit_queue *q);
 int bit_queue_pop( bit_queue *bq, int obj );
 unsigned long check_bit_obj_present( bit_queue *bq, int obj );
+int bit_queue_last_item(bit_queue *bq);
+
+int least_bit(unsigned long map);
 
 
 queue* queue_create( int maxitems, int max_val );
