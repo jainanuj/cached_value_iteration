@@ -9,12 +9,13 @@
 #include "cache_aware_vi.h"
 #include <time.h>
 #include <sys/time.h>
+#include <omp.h>
 
 
 double heat_epsilon_final = heat_epsilon_final_def;
 double heat_epsilon_initial = heat_epsilon_initial_def;
 extern char       gInputFileName[];
-//#define CLUSTERED
+#define CLUSTERED
 
 
 double cache_aware_vi(struct StateListNode *list, int MaxIter, int round, int component_size)
@@ -27,7 +28,10 @@ double cache_aware_vi(struct StateListNode *list, int MaxIter, int round, int co
     
     double epsilon_partition_initial, epsilon_overall, time;
     clock_t compStartTime;
-    
+    struct timeval tInitial;
+    struct timeval tFinal;
+    double timeDay;
+
     open_logfile_stdout();
     //This will partition the list into parts (or 2 level parts) and coplete value Iteration.
 #ifdef __TEST__
@@ -66,14 +70,16 @@ double cache_aware_vi(struct StateListNode *list, int MaxIter, int round, int co
     wlog(1, "Number of Backups for round-%d with ep_part=%6f, ep_overall=%6f:\t%lu\n", round, epsilon_partition, epsilon_overall, w->num_value_updates + w->num_value_updates_iters);
  */
     w->num_value_updates = 0; w->num_value_updates_iters = 0; w->new_partition_wash = 0;
-    w->val_update_time = 0; w->val_update_iters_time = 0;
+    w->val_update_time = 0; w->val_update_iters_time = 0; w->num_value_updates_attempted =0; w->num_value_update_iters_attempted = 0;
     
-    epsilon_partition_initial = heat_epsilon_final; //10; //heat_epsilon_initial;
+    epsilon_partition_initial = 10; //10; //heat_epsilon_initial;
     epsilon_overall = heat_epsilon_final;
     init_level1_part_queue(w);
     init_level0_bit_queue(w);
     
     compStartTime = clock();
+    gettimeofday(&tInitial, NULL);
+
 /*    retVal = value_iterate(w, 1000, 1000);
     init_level1_part_queue(w);
     init_level0_bit_queue(w);
@@ -104,8 +110,13 @@ double cache_aware_vi(struct StateListNode *list, int MaxIter, int round, int co
     retVal = value_iterate(w, epsilon_partition_initial, epsilon_overall);
 //    solve_using_prioritized_vi( w, epsilon_partition, epsilon_overall );
 //    solve_using_prioritized_vi( w, epsilon_partition, epsilon_overall );
+
+    gettimeofday(&tFinal, NULL);
+    timeDay = (tFinal.tv_sec - tInitial.tv_sec) + (float)(tFinal.tv_usec - tInitial.tv_usec) / 1000000;
+
     time = (float)(clock()-compStartTime)/CLOCKS_PER_SEC;
-    printf("Actual Value_iterate function in: %f secs\n", time);
+
+    printf("Actual Value_iterate function in: %f secs. As per day: %f secs\n", time, timeDay);
     printf("Update time taken = %f; Update iters time taken = %f secs\n", w->val_update_time, w->val_update_iters_time);
 
 /*    init_level1_part_queue(w);
@@ -114,7 +125,7 @@ double cache_aware_vi(struct StateListNode *list, int MaxIter, int round, int co
 */
 //    solve_using_prioritized_vi( w, epsilon_partition, epsilon_overall );
     wlog(1, "Number of Backups for round-%d with ep_part=%6f, ep_overall=%6f:\t%lu\n", round, epsilon_partition_initial, epsilon_overall, w->num_value_updates + w->num_value_updates_iters);
-    wlog(1, "Number of new partition washes=%lu, number of updates =%lu, number of update_iters=%lu\n", w->new_partition_wash, w->num_value_updates, w->num_value_updates_iters);
+    wlog(1, "Number of new partition washes=%lu, number of updates =%lu, number of update_iters=%lu, num attempt_updates=%lu, numattempted update_iters=%lu\n", w->new_partition_wash, w->num_value_updates, w->num_value_updates_iters, w->num_value_updates_attempted, w->num_value_update_iters_attempted);
     
 /*    while (epsilon_overall > heat_epsilon_final)
     {
@@ -154,7 +165,7 @@ double cache_aware_vi(struct StateListNode *list, int MaxIter, int round, int co
     wlog(1, "Final Number of Backups for round-%d with ep_part=%6f, ep_overall=%6f:\t%lu. Total_iter backups =%lu\n", round, epsilon_partition_initial, epsilon_overall, total_updates, total_updates_iters);
 
 #ifndef CLUSTERED
-    save_resulting_vector(w, "cached_output_noclust", round, component_size);
+    save_resulting_vector(w, "cached_output", round, component_size);
 #else
     save_resulting_vector(w, "cached_output_clust_ann", round, component_size);
 #endif
@@ -295,7 +306,11 @@ world_t *init_world(struct StateListNode *list, int component_size, int round)
 
     //init_level1_part_queue(w);
     w->part_level0_bit_queue = create_bit_queue(w->num_global_parts);
-    if ( w->part_level0_bit_queue == NULL ) {
+    w->part_level0_processing_bit_queue = create_bit_queue(w->num_global_parts);
+    w->part_level0_waiting_bitq = create_bit_queue(w->num_global_parts);
+    w->processor_busy_bitq = create_bit_queue(omp_get_num_threads());
+    w->leader_thread = 0;
+    if ( w->part_level0_bit_queue == NULL || w->part_level0_processing_bit_queue == NULL || w->part_level0_waiting_bitq == NULL || w->processor_busy_bitq == NULL) {
         wlog( 1, "Error creating bit queue!\n" );
         exit( 0 );
     }

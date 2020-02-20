@@ -146,7 +146,7 @@ int queue_pop(queue *q, int *result )
 //    t_start = whenq();
     if ( (q->numitems <= 0) || (q->start_item_ptr < 0) )
     {
-        fprintf( stderr, "Hey! queue's empty!\n" );
+        //fprintf( stderr, "Hey! queue's empty!\n" );
         return 0;
     }
     
@@ -169,6 +169,12 @@ int queue_has_items(queue *q)
 {
     return q->numitems;
 }
+
+int bit_queue_has_items(bit_queue *bq)
+{
+    return bq->num_items;
+}
+
 
 /*********----------------------------------------------------**************/
 
@@ -242,6 +248,50 @@ int bit_queue_pop( bit_queue *bq, int obj )
     return 1;
     
 }
+
+int bit_queue_last_item(bit_queue *bq)
+{
+    int i = 0, least_bit_set = -1;
+    while (i < bq->max_bit_arrays)
+    {
+        least_bit_set = least_bit(bq->bit_arrays[i]);
+        if ((least_bit_set >= 0 ) && (least_bit_set < BIT_ARRAY_SIZE))
+            return (least_bit_set + i*BIT_ARRAY_SIZE);
+        i++;
+    }
+    return -1;
+}
+
+int least_bit(unsigned long map)
+{
+    unsigned long x;//unsigned long only_least_bit = 0;
+    int least_bit_pos = 0;
+    if (map <= 0)
+        return -1;
+    for (least_bit_pos=0; least_bit_pos < BIT_ARRAY_SIZE; least_bit_pos++)
+    {
+        x = map >> least_bit_pos;
+        if (x & 1)
+            return least_bit_pos;
+    }
+    return -1;
+
+/*    only_least_bit = map & ~(map-1);
+    least_bit_pos = DEBRUIJNBITPOS[ ((only_least_bit * DEBSEQ) & MAX_DEB_SEQ_SIZE) >> DEB_SEQ_REM_WINDOW];
+    return least_bit_pos;*/
+}
+
+int least_bit_deb(unsigned long map)
+{
+    unsigned long only_least_bit = 0;
+    int least_bit_pos = 0;
+    if (map <= 0)
+        return -1;
+     only_least_bit = map & ~(map-1);
+     least_bit_pos = DEBRUIJNBITPOS[ ((only_least_bit * DEBSEQ) & MAX_DEB_SEQ_SIZE) >> DEB_SEQ_REM_WINDOW];
+     return least_bit_pos;
+}
+
 
 
 

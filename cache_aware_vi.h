@@ -20,7 +20,7 @@
 #include "intheap.h"
 
 #define GAUSS_CONST 2
-#define heat_epsilon_final_def 0.000001;
+#define heat_epsilon_final_def 0.000001;//0.000001;
 #define heat_epsilon_initial_def 1000;
 
 
