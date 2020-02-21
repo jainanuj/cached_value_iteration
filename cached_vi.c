@@ -11,7 +11,7 @@
 #include <sys/time.h>
 #include <omp.h>
 
-#define NUM_ITERS_NON_LEADERS 1
+#define NUM_ITERS_NON_LEADERS 5
 
 double heat_epsilon_partition_initial;
 double heat_epsilon_overall;
@@ -332,7 +332,7 @@ int find_new_leader(world_t *w)
 
 double value_iterate_level1_partition( world_t *w, int level1_part )
 {
-    int i, l_part, next_level0_part;
+    int i, l_part, next_level0_part, nthreads;
     double  tmp, maxheat = 0; int tid;
     
     w->level1_parts[level1_part].convergence_factor = heat_epsilon_overall;
@@ -340,7 +340,7 @@ double value_iterate_level1_partition( world_t *w, int level1_part )
     clear_level0_queue(w);      //Only master thread does this. omp
     clear_level0_processing_bit_queue(w);
     clear_level0_wait_q(w);
-    clear_processor_busy_queue(w);
+    //clear_processor_busy_queue(w);
     for (i=0; i< w->level1_parts[level1_part].num_sub_parts; i++ )
     {
         l_part = w->level1_parts[level1_part].sub_parts[i];
@@ -355,6 +355,9 @@ double value_iterate_level1_partition( world_t *w, int level1_part )
     {
     //Don't let this loop terminate for any thread until there is something in processing. New parts may appear as the processing partitions complete.
         tid = omp_get_thread_num();
+	nthreads = omp_get_num_threads();
+	if (tid == 0)
+	   printf("Number of threads:%d------\n",nthreads);
         while (part_available_to_process(w))// || processing_bit_queue_has_items(w) )
         {
             next_level0_part = get_next_part(w, tid);
@@ -364,7 +367,7 @@ double value_iterate_level1_partition( world_t *w, int level1_part )
                     test_and_set_leader(w, tid);
                 tmp = value_iterate_partition(w, next_level0_part, tid);     //Sets a convergence factor if not set and performs VI with it.
                 
-                clear_processor_busy_flag(w, tid);      //Just in case processor busy was left. Shouldn't be the case.
+                //clear_processor_busy_flag(w, tid);      //Just in case processor busy was left. Shouldn't be the case.
                 clear_level0_processing_flag(w, next_level0_part);      //Just incase.
             }
             else if (isLeader(w, tid))
@@ -372,12 +375,12 @@ double value_iterate_level1_partition( world_t *w, int level1_part )
                 w->leader_thread = -1;
                 //find_new_leader(w);
                 printf("Leader thread was:%d. New leader: %d\n",tid, w->leader_thread);
-                clear_processor_busy_flag(w, tid);
+                //clear_processor_busy_flag(w, tid);
                 continue;
             }
             else
             {
-                clear_processor_busy_flag(w, tid);
+                //clear_processor_busy_flag(w, tid);
                 continue;
             }
             #pragma omp critical (vi_level1_bookeeping)
@@ -400,6 +403,8 @@ double value_iterate_level1_partition( world_t *w, int level1_part )
         }
         if (isLeader(w, tid))
             w->leader_thread = -1;      //Leader thread has exited, so there's no leader now.
+        #pragma omp barrier
+
     }       //All threads join after this.
     return maxheat;
 }
@@ -512,7 +517,7 @@ double value_iterate_partition( world_t *w, int l_part, int threadID )
         w->parts[l_part].convergence_factor /= 10;
     }
 
-    clear_processor_busy_flag(w, threadID);
+    //clear_processor_busy_flag(w, threadID);
     //#pragma omp atomic update
     w->val_update_iters_time += (float)(clock() - update_start_time)/CLOCKS_PER_SEC;
 
@@ -616,7 +621,7 @@ int set_dirty_level0_processing(world_t *w, int l_part, int threadID)
     int bit_added = 0;
 //#pragma omp critical (processing_bit_queue)
     bit_added = queue_add_bit(w->part_level0_processing_bit_queue, l_part);
-    bit_added = queue_add_bit(w->processor_busy_bitq, threadID);
+    //bit_added = queue_add_bit(w->processor_busy_bitq, threadID);
     return bit_added;
 }
 int clear_level0_processing_flag(world_t *w, int l_part)
