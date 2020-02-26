@@ -9,22 +9,28 @@
 #include "cache_aware_vi.h"
 #include <time.h>
 #include <sys/time.h>
+#include <omp.h>
+#include "test_fns.h"
 
 
 double heat_epsilon_final = heat_epsilon_final_def;
 double heat_epsilon_initial = heat_epsilon_initial_def;
 extern char       gInputFileName[];
-//#define CLUSTERED
+#define CLUSTERED
 
 
 double cache_aware_vi(struct StateListNode *list, int MaxIter, int round, int component_size)
 {
     world_t *w;
     double retVal = 0;
+    int tid;
     double heat_epsilon_current = heat_epsilon_final;
     float iter_count = 0;
     unsigned long total_updates = 0, total_updates_iters = 0;
-    
+    struct timeval tInitial;
+    struct timeval tFinal;
+    double timeDay;
+
     double epsilon_partition_initial, epsilon_overall, time;
     clock_t compStartTime;
     
@@ -34,12 +40,22 @@ double cache_aware_vi(struct StateListNode *list, int MaxIter, int round, int co
     print_back_list(list, component_size, "verify_list");
     //return 1;
 #endif
-    w = init_world(list, component_size, round);   //Divides the component into partitions. Allocating states per part. & level1 parts.
+    w = init_world(list, component_size, round);   //Divides the component into partitions. Allocating states per part. & thread parts.
     initialize_partitions( w );
     
-    if (w->part_level0_to_level1 != NULL)
-        initialize_level1_partitions(w);
+    if (w->part_level0_to_thread_part != NULL)
+        initialize_thread_parts(w);
+        //initialize_level1_partitions(w);
 
+    
+    //resolve external dependencies.
+    resolve_ext_deps(w);
+    cache_dependencies_in_states(w);
+    translate_all(w);
+    compute_initial_partition_priorities( w );
+    init_part_heap( w );
+    reorder_states_within_partitions( w );
+ 
 #ifdef __TEST__
     print_back_mdp(w, "verify_mdp_initialized");
     //return 1;
@@ -49,14 +65,6 @@ double cache_aware_vi(struct StateListNode *list, int MaxIter, int round, int co
     //return 1;
     //    print_back_cache(w, "verify_cached");
 #endif
-    
-    //resolve external dependencies.
-    resolve_ext_deps(w);
-    cache_dependencies_in_states(w);
-    translate_all(w);
-    compute_initial_partition_priorities( w );
-    init_part_heap( w );
-    reorder_states_within_partitions( w );
 
 /*    heat_epsilon_current = heat_epsilon_initial;
     iter_count = 0;
@@ -68,11 +76,13 @@ double cache_aware_vi(struct StateListNode *list, int MaxIter, int round, int co
     w->num_value_updates = 0; w->num_value_updates_iters = 0; w->new_partition_wash = 0;
     w->val_update_time = 0; w->val_update_iters_time = 0;
     
-    epsilon_partition_initial = heat_epsilon_final; //10; //heat_epsilon_initial;
+    epsilon_partition_initial = 10; //10; //heat_epsilon_initial;
     epsilon_overall = heat_epsilon_final;
-    init_level1_part_queue(w);
+//    init_level1_part_queue(w);
     init_level0_bit_queue(w);
-    
+    init_thread_bit_queue(w);
+
+    gettimeofday(&tInitial, NULL);
     compStartTime = clock();
 /*    retVal = value_iterate(w, 1000, 1000);
     init_level1_part_queue(w);
@@ -101,11 +111,28 @@ double cache_aware_vi(struct StateListNode *list, int MaxIter, int round, int co
 //    retVal = value_iterate(w, 0.0001, 0.0001);
 //    init_level1_part_queue(w);
 //    init_level0_bit_queue(w);
-    retVal = value_iterate(w, epsilon_partition_initial, epsilon_overall);
+#pragma omp parallel default(shared) private(retVal, tid)
+    {
+        retVal = 0;
+        tid = omp_get_thread_num();
+        if (w->thread_parts[tid].num_sub_parts > 0)
+        {
+            printf("Calling VI for Thread:%d with retVal: %d.\n",tid,retVal);
+            retVal = value_iterate(w, epsilon_partition_initial, epsilon_overall);
+            printf("Thread:%d rturned with: %d. Will wait for other threads-----\n",tid,retVal);
+
+        }
+        if (check_dirty_thread_flag(w, tid))
+            printf("Thread:%d has it's bit as dirty------------\n",tid);
+#pragma omp barrier
+    }
+    gettimeofday(&tFinal, NULL);
+    timeDay = (tFinal.tv_sec - tInitial.tv_sec) + (float)(tFinal.tv_usec - tInitial.tv_usec) / 1000000;
+
 //    solve_using_prioritized_vi( w, epsilon_partition, epsilon_overall );
 //    solve_using_prioritized_vi( w, epsilon_partition, epsilon_overall );
     time = (float)(clock()-compStartTime)/CLOCKS_PER_SEC;
-    printf("Actual Value_iterate function in: %f secs\n", time);
+    printf("Actual Value_iterate function in: %f secs. As per day: %f secs\n", time, timeDay);
     printf("Update time taken = %f; Update iters time taken = %f secs\n", w->val_update_time, w->val_update_iters_time);
 
 /*    init_level1_part_queue(w);
@@ -154,7 +181,7 @@ double cache_aware_vi(struct StateListNode *list, int MaxIter, int round, int co
     wlog(1, "Final Number of Backups for round-%d with ep_part=%6f, ep_overall=%6f:\t%lu. Total_iter backups =%lu\n", round, epsilon_partition_initial, epsilon_overall, total_updates, total_updates_iters);
 
 #ifndef CLUSTERED
-    save_resulting_vector(w, "cached_output_noclust", round, component_size);
+    save_resulting_vector(w, "cached_output", round, component_size);
 #else
     save_resulting_vector(w, "cached_output_clust_ann", round, component_size);
 #endif
@@ -208,7 +235,7 @@ double gauss(double x)
 world_t *init_world(struct StateListNode *list, int component_size, int round)
 {
     world_t *w;
-    int l_part, st_index;
+    int l_part, st_index, i;
     
     clock_t     compStartTime = 0;
     double time = 0;
@@ -270,20 +297,31 @@ world_t *init_world(struct StateListNode *list, int component_size, int round)
     w->total_int_deps = 0; w->total_ext_deps = 0;
     traverse_comp_form_parts(list, w, round);
     wlog(1, "Total internal dependents = %lu; Ext = %lu\n", w->total_int_deps, w->total_ext_deps);
-    form_level1_parts(w);
+    //form_level1_parts(w);
+    form_thread_parts(w);
     //Create all the queues needed to mantain states/parts/level1 parts to be processed during VI.
     
     //Number of parts in each level1 part. //Two params are number of items and the max value of the item.
-    w->part_queue = queue_create(NUM_PARTS_IN_LEVEL1 + 1, w->num_global_parts);
-    if ( w->part_queue == NULL ) {
+//    w->part_queue = queue_create(NUM_PARTS_IN_LEVEL1 + 1, w->num_global_parts);
+/*    if ( w->part_queue == NULL ) {
         wlog( 1, "Error creating queue!\n" );
         exit( 0 );
+    }*/
+
+    w->all_thread_queues = (queue **)malloc(sizeof(queue *) * w->num_threads);
+    for (i = 0; i < w->num_threads; i++)
+    {
+        w->all_thread_queues[i] = queue_create(w->max_parts_in_each_thread, w->num_global_parts+1);
+        if ( w->all_thread_queues[i] == NULL ) {
+            wlog( 1, "Error creating queue!\n" );
+            exit( 0 );
+        }
     }
-    w->part_level1_queue = queue_create(w->num_level1_parts, w->num_level1_parts);
+/*    w->part_level1_queue = queue_create(w->num_level1_parts, w->num_level1_parts);
     if ( w->part_level1_queue == NULL ) {
         wlog( 1, "Error creating queue!\n" );
         exit( 0 );
-    }
+    }*/
     
     /* Create our local priority queue. This is done with a heap. */
     w->part_heap = heap_create( w->num_global_parts, part_cmp_func,
@@ -299,24 +337,40 @@ world_t *init_world(struct StateListNode *list, int component_size, int round)
         wlog( 1, "Error creating bit queue!\n" );
         exit( 0 );
     }
+    
+    w->thread_bit_q = create_bit_queue(w->num_threads);
+    if ( w->thread_bit_q == NULL ) {
+        wlog( 1, "Error creating bit queue!\n" );
+        exit( 0 );
+    }
     //init_level0_bit_queue(w);
     return w;
 }
 
-void init_level1_part_queue( world_t *w )
+/*void init_level1_part_queue( world_t *w )
 {
     int level1_part;
     for ( level1_part=0; level1_part<w->num_level1_parts; level1_part++ )
     {
         queue_add( w->part_level1_queue, level1_part );
     }
-}
+}*/
 void init_level0_bit_queue(world_t *w)
 {
     int l_part_num;
     for ( l_part_num=0; l_part_num<w->num_global_parts; l_part_num++ )
     {
         queue_add_bit( w->part_level0_bit_queue, l_part_num );
+    }
+}
+
+void init_thread_bit_queue(world_t *w)
+{
+    int thread_num;
+    for ( thread_num=0; thread_num<w->num_threads; thread_num++ )
+    {
+        if (w->thread_parts[thread_num].num_sub_parts > 0)
+            queue_add_bit( w->thread_bit_q, thread_num );
     }
 }
 
@@ -501,7 +555,7 @@ void assign_state_to_part_num(struct StateListNode *list, world_t *w)
      //destroy states_queue. Implement the destroy function in queue.
  }
 
-void assign_part_to_level1_part(world_t *w)
+/*void assign_part_to_level1_part(world_t *w)
 {
     int num_part = 0, curr_part;
     int level_1_part = 0;
@@ -514,9 +568,24 @@ void assign_part_to_level1_part(world_t *w)
         w->level1_parts[level_1_part].sub_parts[curr_part] = num_part;
         w->level1_parts[level_1_part].num_sub_parts++;
     }
+}*/
+
+void assign_part_to_thread_parts(world_t *w)
+{
+    int num_part = 0, curr_part;
+    int thread_part = 0;
+    for (num_part = 0; num_part < w->num_global_parts; num_part++)
+    {
+        if (w->thread_parts[thread_part].num_sub_parts == w->max_parts_in_each_thread)
+            thread_part++;
+        curr_part = w->thread_parts[thread_part].num_sub_parts;
+        w->part_level0_to_thread_part[num_part] = thread_part;
+        w->thread_parts[thread_part].sub_parts[curr_part] = num_part;
+        w->thread_parts[thread_part].num_sub_parts++;
+    }
 }
 
-void form_level1_parts(world_t *w)
+/*void form_level1_parts(world_t *w)
 {
     int i;
     w->part_level0_to_level1 = (int *)malloc( sizeof(int) * w->num_global_parts);
@@ -539,6 +608,33 @@ void form_level1_parts(world_t *w)
         w->level1_parts[i].num_sub_parts = 0;
     }
     assign_part_to_level1_part(w);
+}
+*/
+void form_thread_parts(world_t *w)
+{
+    int i;
+    w->part_level0_to_thread_part = (int *)malloc( sizeof(int) * w->num_global_parts);
+    if ( w->part_level0_to_thread_part == NULL )
+    {
+        wlog( 1, "Error allocating part_level0_to_thread!\n" );
+        exit( 0 );
+    }
+    memset(w->part_level0_to_thread_part, 0, sizeof(int) * w->num_global_parts);
+
+#pragma omp parallel default(shared)
+    #pragma omp single
+        w->num_threads = omp_get_num_threads();
+
+    w->thread_parts = (thread_part_t *)malloc( sizeof(thread_part_t) * w->num_threads);
+    memset(w->thread_parts, 0, sizeof(thread_part_t) * w->num_threads);
+    for (i = 0; i < w->num_threads; i++)
+    {
+        w->max_parts_in_each_thread = (w->num_global_parts/w->num_threads) + 1;
+        w->thread_parts[i].sub_parts = (int *)malloc(sizeof(int) * (w->max_parts_in_each_thread));
+        memset(w->thread_parts[i].sub_parts, 0, sizeof(int) * w->max_parts_in_each_thread);
+        w->thread_parts[i].num_sub_parts = 0;
+    }
+    assign_part_to_thread_parts(w);
 }
 
 void copy_state_to_part(struct StateNode *state, world_t *w, int round)
@@ -658,7 +754,7 @@ void initialize_partitions( world_t *w )
     }
 }
 
-void initialize_level1_partitions( world_t *w )
+/*void initialize_level1_partitions( world_t *w )
 {
     int level1_part;
     
@@ -667,11 +763,30 @@ void initialize_level1_partitions( world_t *w )
     
     for (level1_part = 0; level1_part < w->num_level1_parts; level1_part++)
     {
-        /* create the dependency hashes for this partition */
+        // create the dependency hashes for this partition
         w->level1_parts[level1_part].my_local_dependents = med_hash_create( 4 );
         if (w->level1_parts[level1_part].my_local_dependents == NULL)
         {
             wlog( 1, "Error creating dependency hashes for level1 part %d!\n", level1_part );
+            exit( 0 );
+        }
+    }
+}
+*/
+void initialize_thread_parts( world_t *w )
+{
+    int thread_part;
+    
+    if (w->part_level0_to_thread_part == NULL)
+        return;
+    
+    for (thread_part = 0; thread_part < w->num_threads; thread_part++)
+    {
+        /* create the dependency hashes for this partition */
+        w->thread_parts[thread_part].my_local_dependents = med_hash_create( 4 );
+        if (w->thread_parts[thread_part].my_local_dependents == NULL)
+        {
+            wlog( 1, "Error creating dependency hashes for thread: %d!\n", thread_part );
             exit( 0 );
         }
     }
@@ -691,7 +806,7 @@ int gsi_to_lsi(world_t *w, int global_index)
 void resolve_ext_deps(world_t *w)
 {
     int l_start_state, state_cnt;
-    int l_start_part, level1_start_part = 0, level1_end_part = 0;
+    int l_start_part, thread_start_part, thread_end_part;
     int g_end_state, l_end_part, l_end_state;
     int action, next_st_index, ext_dep_cnt;
     trans_t *t;
@@ -709,7 +824,7 @@ void resolve_ext_deps(world_t *w)
                 ext_dep_cnt = t->ext_deps;
                 for ( next_st_index=0; next_st_index < ext_dep_cnt; next_st_index++ )
                 {
-                    g_end_state = t->entries[ next_st_index + t->int_deps ].col;
+                    g_end_state = t->entries[ next_st_index + t->int_deps ].col;        //Starting to look for all external dependents.
                     if (g_end_state != -1)  //End state is in world. If out of world, no dep resolution reqd. Just cache value.
                     {
                         l_end_part = state_to_partnum( w, g_end_state );//where is g_end_state. What partition it's in.
@@ -719,10 +834,12 @@ void resolve_ext_deps(world_t *w)
                         }
                         /* g_end_state isn't in start partition.
                          g_end_part needs to know that if it changes, start_part needs to be re-evaluated.*/
-                        level1_start_part = w->part_level0_to_level1[l_start_part];
-                        level1_end_part = w->part_level0_to_level1[l_end_part];
-                        add_dep( w, l_start_part, l_start_state, l_end_part, level1_start_part, level1_end_part );
-
+                        //level1_start_part = w->part_level0_to_level1[l_start_part];
+                        thread_start_part = w->part_level0_to_thread_part[l_start_part];
+                        //level1_end_part = w->part_level0_to_level1[l_end_part];
+                        thread_end_part = w->part_level0_to_thread_part[l_end_part];
+                        //add_dep( w, l_start_part, l_start_state, l_end_part, level1_start_part, level1_end_part );
+                        add_dep( w, l_start_part, l_start_state, l_end_part, thread_start_part, thread_end_part );
                         //Every partition also mantains a list of ext partitions it transitions to.
                         //In each of the external partitions will be list of states that can be transitioned into.
                         //This is used to load values of external states during vi in cache efficient manner.
@@ -738,7 +855,7 @@ void resolve_ext_deps(world_t *w)
 
 void add_dep( world_t *w,
              int l_start_part, int l_start_state,
-             int l_end_part, int level1_start_part, int level1_end_part )
+             int l_end_part, int thread_start_part, int thread_end_part )
 {
     
     val_t val0;
@@ -752,7 +869,7 @@ void add_dep( world_t *w,
     if (rval > MH_ADD_REPLACED)
         wlog(1, "Problems adding to heat links of start part. Rval=%d\n", rval);
 
-    if (level1_start_part == level1_end_part)       //Within same level1 partition so just add to deps of local part.
+    if (thread_start_part == thread_end_part)       //Within same thread partitions so just add to deps of local part.
     {
         //        med_hash_set_add( w->parts[ l_end_part ].my_local_dependents,
         //                         g_start_part, l_start_state );
@@ -776,8 +893,10 @@ void add_dep( world_t *w,
         //Add dependency of higher level partitions, so
         //the higher level partition can be scheduled if the dpendent changed.
         //        med_hash_set_add(w->level1_parts[level1_end_part].my_local_dependents, level1_start_part, g_start_part);
-        rval = med_hash_add(w->level1_parts[level1_end_part].my_local_dependents,
-                            level1_start_part, val0);
+//        rval = med_hash_add(w->level1_parts[level1_end_part].my_local_dependents,
+//                            level1_start_part, val0);
+        rval = med_hash_add(w->thread_parts[thread_end_part].my_local_dependents,
+                            thread_start_part, val0);
         if (rval > MH_ADD_REPLACED)
             wlog(1, "Problems adding to local deps of l1 parts. Rval=%d\n", rval);
     }

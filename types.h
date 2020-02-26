@@ -12,9 +12,9 @@
 #include "intqueue.h"
 #include "intheap.h"
 
-#define PART_SIZE  5000//6100       //3
+#define PART_SIZE  500//6100       //3
 #define ARR_SIZE  1000000
-#define NUM_PARTS_IN_LEVEL1 1000
+#define NUM_PARTS_IN_LEVEL1 10000
 
 
 typedef struct vec_t {
@@ -101,6 +101,12 @@ typedef struct level1_part_t {
     med_hash_t *my_local_dependents;
 } level1_part_t;
 
+typedef struct thread_part_t {
+    int *sub_parts;        //This is an array of part#s of sub parts belonging to this level1 part.
+    int num_sub_parts;     //Number of sub_parts belonging to this level1 part.
+    med_hash_t *my_local_dependents;
+} thread_part_t;
+
 
 typedef struct world_t {
     int num_global_parts;
@@ -109,11 +115,15 @@ typedef struct world_t {
     int num_level1_parts;
     
     part_t *parts;
-    level1_part_t   *level1_parts;
+//    level1_part_t   *level1_parts;
+    thread_part_t   *thread_parts;
+    
     heap *part_heap;
-    queue *part_queue;
-    queue *part_level1_queue;
+//    queue *part_queue;
+//    queue *part_level1_queue;
+    queue **all_thread_queues;
     bit_queue *part_level0_bit_queue;
+    bit_queue *thread_bit_q;
 //    bit_queue *terminal_bit_queue;
 //    bit_queue *dead_bit_queue;
 //    bit_queue *planningStates;
@@ -124,6 +134,9 @@ typedef struct world_t {
     unsigned long new_partition_wash;
     unsigned long total_int_deps;
     unsigned long total_ext_deps;
+    
+    int num_threads;
+    int max_parts_in_each_thread;
     
     double val_update_time;
     double val_update_iters_time;
@@ -137,7 +150,8 @@ typedef struct world_t {
     /* this maps GLOBAL states to GLOBAL partnums! */
     int *state_to_partnum;
     //This maps level0 parts to level1 parts
-    int *part_level0_to_level1;
+//    int *part_level0_to_level1;
+    int *part_level0_to_thread_part;
     int *gsi_to_lsi;
     
 } world_t;

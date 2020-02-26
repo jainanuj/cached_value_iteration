@@ -22,20 +22,25 @@
 
 //double value_iterate(world_t *w, double heat_epsilon_current);
 double value_iterate( world_t *w, double epsilon_partition, double epsilon_overall );
-double value_iterate_level1_partition( world_t *w, int level1_part );
+double value_iterate_thread( world_t *w, int level1_part );
 double value_iterate_partition( world_t *w, int l_part );
 
 int level1_part_available_to_process(world_t *w);
 int get_next_level1_part(world_t *w);
 void add_level1_parts_deps_for_eval(world_t *w, int level1_part_changed);
+void add_thread_deps_for_eval(world_t *w, int thread_changed);
 int clear_level0_queue(world_t *w);
 unsigned long check_dirty(world_t *w, int l_part);
+unsigned long check_dirty_thread_flag(world_t *w, int thread_id);
+
 int add_level0_queue(world_t *w, int l_part);
 int clear_level0_dirty_flag(world_t *w, int l_part);
+int clear_thread_flag_bit_q(world_t *w, int thread_id);
 int part_available_to_process(world_t *w);
 int get_next_part(world_t *w);
 void add_level0_partition_deps_for_eval(world_t *w, int l_part_changed);
 int set_dirty(world_t *w, int l_part);
+int set_dirty_thread_bitq(world_t *w, int t_id);
 void add_partition_for_eval(world_t *w, int l_part);
 double value_update( world_t *w, int l_part, int l_state );
 double reward_or_value( world_t *w, int l_part, int l_state, int a );
