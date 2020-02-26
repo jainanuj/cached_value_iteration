@@ -154,9 +154,9 @@ double cache_aware_vi(struct StateListNode *list, int MaxIter, int round, int co
     wlog(1, "Final Number of Backups for round-%d with ep_part=%6f, ep_overall=%6f:\t%lu. Total_iter backups =%lu\n", round, epsilon_partition_initial, epsilon_overall, total_updates, total_updates_iters);
 
 #ifndef CLUSTERED
-    save_resulting_vector(w, "cached_output", round, component_size);
+    save_resulting_vector(w, "cached_output_noclust", round, component_size);
 #else
-    save_resulting_vector(w, "cached_output_clust_noann", round, component_size);
+    save_resulting_vector(w, "cached_output_clust_ann", round, component_size);
 #endif
 /*
     while (heat_epsilon_current > heat_epsilon_final)

@@ -35,7 +35,9 @@ void copy_state_to_part(struct StateNode *state, world_t *w, int round);
 void assign_state_to_part_num(struct StateListNode *list, world_t *w);
 void assign_state_to_part_cluster(struct StateListNode *list, world_t *w, int round);
 void form_level1_parts(world_t *w);
+void form_thread_parts(world_t *w);
 void assign_part_to_level1_part(world_t *w);
+void assign_part_to_thread_parts(world_t *w);
 
 void resolve_ext_deps(world_t *w);
 void cache_dependencies_in_states( world_t *w );
@@ -57,11 +59,13 @@ void cache_val_state_out_of_world(val_t **arrayValptrs, int indexVal, double ext
 int state_to_partnum( world_t *w, int state_t );
 int gsi_to_lsi(world_t *w, int global_index);
 void initialize_partitions( world_t *w );
+void initialize_thread_parts( world_t *w );
 void initialize_level1_partitions( world_t *w );
 
 
 void init_level1_part_queue( world_t *w );
 void init_level0_bit_queue(world_t *w);
+void init_thread_bit_queue(world_t *w);
 
 void translate_and_negate_all( world_t *w );
 void translate_all(world_t *w);

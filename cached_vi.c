@@ -9,6 +9,7 @@
 #include "cached_vi.h"
 #include <time.h>
 #include <sys/time.h>
+#include <omp.h>
 
 double heat_epsilon_partition_initial;
 double heat_epsilon_overall;
@@ -275,18 +276,23 @@ void update_part_heat( world_t *w, int l_part_num, double heat_left)
 
 double value_iterate( world_t *w, double epsilon_partition_initial, double epsilon_overall )
 {
-    int   level1_part;
+    int   thread_id;
     double tmp =0; //maxheat
     heat_epsilon_partition_initial = epsilon_partition_initial;
     heat_epsilon_overall = epsilon_overall;
     //maxheat = 0;
-    while (level1_part_available_to_process(w))
+    thread_id = omp_get_thread_num();
+    while (1)
     {
-        level1_part = get_next_level1_part(w);
-        tmp = value_iterate_level1_partition( w, level1_part );
+        if (check_dirty_thread_flag(w, thread_id) == 0)
+            break;
+        else
+            printf("Thread:%d got a dirty flag and will value iterate. Number of items it has :%d\n",thread_id,w->thread_parts[thread_id].num_sub_parts);
+        clear_thread_flag_bit_q(w, thread_id);
+        tmp = value_iterate_thread( w, thread_id );
         if (tmp > heat_epsilon_overall)
         {
-            add_level1_parts_deps_for_eval(w, level1_part);
+            add_thread_deps_for_eval(w, thread_id);
             //maxheat = tmp;
         }
     }
@@ -294,15 +300,15 @@ double value_iterate( world_t *w, double epsilon_partition_initial, double epsil
 }
 
 
-double value_iterate_level1_partition( world_t *w, int level1_part )
+double value_iterate_thread( world_t *w, int thread_id )
 {
     int i, l_part, next_level0_part;
     double  tmp, maxheat = 0;
     
     clear_level0_queue(w);
-    for (i=0; i< w->level1_parts[level1_part].num_sub_parts; i++ )
+    for (i=0; i< w->thread_parts[thread_id].num_sub_parts; i++ )
     {
-        l_part = w->level1_parts[level1_part].sub_parts[i];
+        l_part = w->thread_parts[thread_id].sub_parts[i];
         if (check_dirty(w, l_part) )
         {
             add_level0_queue(w, l_part);
@@ -319,8 +325,6 @@ double value_iterate_level1_partition( world_t *w, int level1_part )
         {
             //Add local deps to queue. Mark global as dirty.
             add_level0_partition_deps_for_eval(w, next_level0_part);
-            if (w->part_queue->numitems > w->level1_parts[level1_part].num_sub_parts )
-                wlog(1, "storing too many items in level0 q. NumItems = %d\n",w->part_queue->numitems);
             maxheat = tmp>maxheat ? tmp: maxheat;
 /*            if (w->parts[next_level0_part].convergence_factor > heat_epsilon_overall)
             {
@@ -416,7 +420,7 @@ double value_iterate_partition( world_t *w, int l_part )
     return max_heat;
 }
 
-int level1_part_available_to_process(world_t *w)
+/*int level1_part_available_to_process(world_t *w)
 {
     return queue_has_items(w->part_level1_queue);
 }
@@ -440,32 +444,72 @@ void add_level1_parts_deps_for_eval(world_t *w, int level1_part_changed)
     {
         queue_add(w->part_level1_queue, level1_start_part);
     }
+}*/
+void add_thread_deps_for_eval(world_t *w, int thread_changed)
+{
+    
+    int thread_start;
+    med_hash_t *dep_part_hash;
+    int index1;
+    val_t *v;
+    
+    dep_part_hash = w->thread_parts[thread_changed].my_local_dependents;
+    index1 = 0;
+    while ( med_hash_iterate( dep_part_hash, &index1, &thread_start, &v ) )
+    {
+        set_dirty_thread_bitq(w, thread_start);
+    }
 }
 
 int clear_level0_queue(world_t *w)
 {
-    return empty_queue(w->part_queue);
+    int my_q = omp_get_thread_num();
+    return empty_queue(w->all_thread_queues[my_q]);
+//    return empty_queue(w->part_queue);
 }
 unsigned long check_dirty(world_t *w, int l_part)
 {
     return check_bit_obj_present(w->part_level0_bit_queue, l_part);
 }
+
+unsigned long check_dirty_thread_flag(world_t *w, int thread_id)
+{
+    return check_bit_obj_present(w->thread_bit_q, thread_id);
+}
+
 int add_level0_queue(world_t *w, int l_part)
 {
-    return queue_add(w->part_queue, l_part);
+    int my_q = omp_get_thread_num();
+    if (w->part_level0_to_thread_part[l_part] != my_q)
+    {
+        printf("Something wrong as part:%d doesnt belong to the q for thread:%d. It belongs to %d---\n",l_part,my_q,w->part_level0_to_thread_part[l_part]);
+        exit(1);
+    }
+    return queue_add(w->all_thread_queues[my_q], l_part);   //Add part to the queue for this thread.
+//    return queue_add(w->part_queue, l_part);
 }
 int clear_level0_dirty_flag(world_t *w, int l_part)
 {
     return bit_queue_pop(w->part_level0_bit_queue, l_part);
 }
+int clear_thread_flag_bit_q(world_t *w, int thread_id)
+{
+    return bit_queue_pop(w->thread_bit_q, thread_id);
+}
+
+
 int part_available_to_process(world_t *w)
 {
-    return queue_has_items(w->part_queue);
+    int my_q = omp_get_thread_num();
+    return queue_has_items(w->all_thread_queues[my_q]);
+//    return queue_has_items(w->part_queue);
 }
 int get_next_part(world_t *w)
 {
     int next_partition;
-    queue_pop(w->part_queue, &next_partition);
+    int my_q = omp_get_thread_num();
+    queue_pop(w->all_thread_queues[my_q], &next_partition);
+//    queue_pop(w->part_queue, &next_partition);
     return next_partition;
 }
 void add_level0_partition_deps_for_eval(world_t *w, int l_part_changed)
@@ -474,12 +518,19 @@ void add_level0_partition_deps_for_eval(world_t *w, int l_part_changed)
     med_hash_t *dep_part_hash;
     int index1;
     val_t *v;
+    int my_q = omp_get_thread_num();
     
     dep_part_hash = w->parts[ l_part_changed ].my_local_dependents;
     index1 = 0;
     while ( med_hash_iterate( dep_part_hash, &index1, &l_start_part, &v ) )
     {
-        queue_add(w->part_queue, l_start_part);
+        if (w->part_level0_to_thread_part[l_start_part] != my_q)
+        {
+            printf("Something went wrong. Part:%d is in local deps but doesnt belong to thread:%d. Instead belongs to:%d----\n",l_start_part,my_q,w->part_level0_to_thread_part[l_start_part]);
+            exit(1);
+        }
+        queue_add(w->all_thread_queues[my_q], l_start_part);
+        //queue_add(w->part_queue, l_start_part);
     }
     
     dep_part_hash = w->parts[ l_part_changed ].my_global_dependents;
@@ -490,15 +541,19 @@ void add_level0_partition_deps_for_eval(world_t *w, int l_part_changed)
         //        queue_add(w->part_queue, l_start_part);
     }
 }
-void add_partition_for_eval(world_t *w, int l_part)
+/*void add_partition_for_eval(world_t *w, int l_part)
 {
     queue_add(w->part_queue, l_part);
     set_dirty(w, l_part);
-}
+}*/
 
 int set_dirty(world_t *w, int l_part)
 {
     return queue_add_bit(w->part_level0_bit_queue, l_part);
+}
+int set_dirty_thread_bitq(world_t *w, int t_id)
+{
+    return queue_add_bit(w->thread_bit_q, t_id);
 }
 
 //Need to minimize cost (not maximize reward)
@@ -525,20 +580,19 @@ double value_update( world_t *w, int l_part, int l_state )
             min_action = action;
         }
     }
-    w->parts[l_part].states[l_state].bestAction = min_action;       //update best Action for this state.
     //Commenting Out - ANUJ - max_value can be -ve. This is when we have a cost to pay for the action.
     //  if ( max_value < 0 ) {
     //    fprintf( stderr, "WARGH!\n" );
     //    exit( 0 );
     //  }
-    w->parts[ l_part ].values.elts[ l_state ] = value;       //Update the V(s) for this state.
-    w->num_value_updates++;
     if (value <= cval)
-        return cval - value;
-    else
     {
-        return value - cval;
+        w->parts[l_part].states[l_state].bestAction = min_action;       //update best Action for this state.   
+        w->parts[ l_part ].values.elts[ l_state ] = value;    //Update the V(s) for this state.
+        w->num_value_updates++;
+        return cval - value;
     }
+    return 0;
     
 }
 double reward_or_value( world_t *w, int l_part, int l_state, int a ) {
@@ -678,15 +732,14 @@ double value_update_iters( world_t *w, int l_part, int l_state )
 //        exit( 0 );
 //    }
     
-    w->parts[ l_part ].values.elts[ l_state ] = value;       //Update the V(s,a) for this state.
-    w->num_value_updates_iters++;
-    
     if (value <= cval)
+    {   
+        w->parts[l_part].states[l_state].bestAction = min_action;       //update best Action for this state.
+        w->parts[ l_part ].values.elts[ l_state ] = value;    //Update the V(s) for this state.
+        w->num_value_updates_iters++;
         return cval - value;
-    else
-    {
-        return value - cval;
-    }
+    }    
+    return 0;
 }
 
 double reward_or_value_iters( world_t *w, int l_part, int l_state, int a )

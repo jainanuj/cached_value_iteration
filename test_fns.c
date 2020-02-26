@@ -75,7 +75,7 @@ void print_back_deps(world_t *w, char *verify_deps)
 {
     FILE *fp_verify = fopen(verify_deps, "wb");
     int l_part = 0; int l_state = 0, state_index, over_mdp_state_index;
-    int index, index2, dep_part, l1_part, l_sub_part; val_t *v;
+    int index, index2, dep_part, thrad_part, l_sub_part; val_t *v;
     
     med_hash_t *dep_hash;
     val_t *v2;
@@ -93,8 +93,8 @@ void print_back_deps(world_t *w, char *verify_deps)
     fprintf(fp_verify, "Part_lev0_lev1");
     for (l_part=0; l_part < w->num_global_parts; l_part++)
     {
-        l1_part = w->part_level0_to_level1[l_part];
-        fprintf(fp_verify, "L0 Part:%d  L1 Part:%d\n", l_part, l1_part);
+        thrad_part = w->part_level0_to_thread_part[l_part];
+        fprintf(fp_verify, "L0 Part:%d  Thread Part:%d\n", l_part, thrad_part);
     }
     
     fprintf(fp_verify, "*****************\n");
@@ -111,13 +111,13 @@ void print_back_deps(world_t *w, char *verify_deps)
     }
     
     fprintf(fp_verify, "*****************\n");
-    fprintf(fp_verify, "L1 parts: %d\n", w->num_level1_parts);
-    for (l1_part=0; l1_part < w->num_level1_parts; l1_part++)
+    fprintf(fp_verify, "Thread parts: %d\n", w->num_threads);
+    for (thrad_part=0; thrad_part < w->num_threads; thrad_part++)
     {
-        fprintf(fp_verify, "Level1 part %d sub_parts: %d\n", l1_part, w->level1_parts[l1_part].num_sub_parts);
-        for (l_sub_part=0; l_sub_part <  w->level1_parts[l1_part].num_sub_parts; l_sub_part++)
+        fprintf(fp_verify, "Thread part %d sub_parts: %d\n", thrad_part, w->thread_parts[thrad_part].num_sub_parts);
+        for (l_sub_part=0; l_sub_part <  w->thread_parts[thrad_part].num_sub_parts; l_sub_part++)
         {
-            fprintf(fp_verify, "%d ",w->level1_parts[l1_part].sub_parts[l_sub_part]);
+            fprintf(fp_verify, "%d ",w->thread_parts[thrad_part].sub_parts[l_sub_part]);
         }
         fprintf(fp_verify, "\n");
     }
@@ -148,11 +148,11 @@ void print_back_deps(world_t *w, char *verify_deps)
     
     fprintf(fp_verify, "*****************\n");
     fprintf(fp_verify, "Printing deps for L1 parts: %d\n", w->num_level1_parts);
-    for (l1_part=0; l1_part < w->num_level1_parts; l1_part++)
+    for (thrad_part=0; thrad_part < w->num_threads; thrad_part++)
     {
-        fprintf(fp_verify, "Level1 part %d - Sub parts: %d\n", l1_part, w->level1_parts[l1_part].num_sub_parts);
-        dep_hash = w->level1_parts[l1_part].my_local_dependents;
-        fprintf(fp_verify, "local_deps for Level1 part %d:\n", l1_part);
+        fprintf(fp_verify, "Thread part %d - Sub parts: %d\n", thrad_part, w->thread_parts[thrad_part].num_sub_parts);
+        dep_hash = w->thread_parts[thrad_part].my_local_dependents;
+        fprintf(fp_verify, "local_deps for Level1 part %d:\n", thrad_part);
         index=0;
         while (med_hash_iterate(dep_hash, &index, &dep_part, &v))
         {
