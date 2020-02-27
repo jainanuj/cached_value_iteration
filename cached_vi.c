@@ -12,7 +12,7 @@
 #include <omp.h>
 
 #define NUM_ITERS_NON_LEADERS 5
-int inner_par = 2;
+int inner_par = 1;
 
 double heat_epsilon_partition_initial;
 double heat_epsilon_overall;
@@ -469,9 +469,9 @@ double value_iterate_partition( world_t *w, int l_part, int threadID )
 //    }
     max_heat = 0;chunk = state_cnt/inner_par;
     //First iteration of the partition.
-#pragma omp parallel for default(shared) num_threads(inner_par) private(i, l_state, delta)  \
+/*#pragma omp parallel for default(shared) num_threads(inner_par) private(i, l_state, delta)  \
  schedule(dynamic,chunk)      \
- reduction(max:max_heat)
+ reduction(max:max_heat)*/
     for ( i = 0; i < state_cnt; i++ )
     {
         l_state = pp->variable_ordering[i];
@@ -503,9 +503,9 @@ double value_iterate_partition( world_t *w, int l_part, int threadID )
             //It signifies that we are making progress within the partition.
             part_internal_heat = 0;
 
-#pragma omp parallel for default(shared) num_threads(inner_par) private(i, l_state, delta)  \
+/*#pragma omp parallel for default(shared) num_threads(inner_par) private(i, l_state, delta)  \
  schedule(dynamic,chunk)      \
- reduction(max:part_internal_heat)
+ reduction(max:part_internal_heat)*/
             for ( i = 0; i < state_cnt; i++ )
             {
                 l_state = pp->variable_ordering[i];
