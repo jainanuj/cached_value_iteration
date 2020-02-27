@@ -14,6 +14,8 @@
 double heat_epsilon_partition_initial;
 double heat_epsilon_overall;
 
+extern int inner_par;
+
 /*double value_iterate( world_t *w, double heat_epsilon_current )
 {
     int   level1_part;
@@ -282,6 +284,7 @@ double value_iterate( world_t *w, double epsilon_partition_initial, double epsil
     heat_epsilon_overall = epsilon_overall;
     //maxheat = 0;
     thread_id = omp_get_thread_num();
+    printf("Inner PAr is:%d",inner_par);
     while (1)
     {
         if (check_dirty_thread_flag(w, thread_id) == 0)
@@ -344,7 +347,7 @@ double value_iterate_partition( world_t *w, int l_part )
     int numPartitionIters = 0;
     clock_t update_start_time;
     
-    int g_end_ext_partition, l_end_ext_state, index1 = 0, index2 = 0;
+    int g_end_ext_partition, l_end_ext_state, index1 = 0, index2 = 0;int chunk;
     val_t *val_state_action;
     /*   FILE *fp; */
     
@@ -367,8 +370,11 @@ double value_iterate_partition( world_t *w, int l_part )
     else if ( (w->parts[l_part].convergence_factor > heat_epsilon_overall) && (w->parts[l_part].washes % 10 == 0) )
         w->parts[l_part].convergence_factor /= 10;
         
-    max_heat = 0;
+    max_heat = 0;chunk = state_cnt/inner_par;
     //First iteration of the partition.
+/*#pragma omp parallel for default(shared) num_threads(inner_par) private(i, l_state, delta)  \
+schedule(dynamic,chunk)      \
+reduction(max:max_heat)*/
     for ( i = 0; i < state_cnt; i++ )
     {
         l_state = pp->variable_ordering[i];
@@ -392,6 +398,9 @@ double value_iterate_partition( world_t *w, int l_part )
             //It attains value of max heat in that iteration and keeps on reducing with every iteration.
             //It signifies that we are making progress within the partition.
             part_internal_heat = 0;
+/*#pragma omp parallel for default(shared) num_threads(inner_par) private(i, l_state, delta)  \
+schedule(dynamic,chunk)      \
+reduction(max:part_internal_heat)*/
             for ( i = 0; i < state_cnt; i++ )
             {
                 l_state = pp->variable_ordering[i];
@@ -400,6 +409,7 @@ double value_iterate_partition( world_t *w, int l_part )
                     delta = value_update_iters( w, l_part, l_state );
                 part_internal_heat = fabs( delta ) > part_internal_heat ? fabs( delta ): part_internal_heat;
             }
+            
             w->parts[ l_part ].washes++;
             numPartitionIters++;
             if (part_internal_heat > max_heat)
