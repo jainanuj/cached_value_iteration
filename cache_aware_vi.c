@@ -15,6 +15,7 @@
 
 double heat_epsilon_final = heat_epsilon_final_def;
 double heat_epsilon_initial = heat_epsilon_initial_def;
+int inner_par = 1;
 extern char       gInputFileName[];
 #define CLUSTERED
 
@@ -111,7 +112,10 @@ double cache_aware_vi(struct StateListNode *list, int MaxIter, int round, int co
 //    retVal = value_iterate(w, 0.0001, 0.0001);
 //    init_level1_part_queue(w);
 //    init_level0_bit_queue(w);
-#pragma omp parallel default(shared) private(retVal, tid)
+    omp_set_nested(1);
+    printf("Nested parallelism is %s\n", omp_get_nested() ? "supported" : "not supported");
+    printf("Num of threads:%d\n",w->num_threads);
+#pragma omp parallel default(shared) private(retVal, tid) num_threads(w->num_threads)
     {
         retVal = 0;
         tid = omp_get_thread_num();
@@ -623,7 +627,7 @@ void form_thread_parts(world_t *w)
 
 #pragma omp parallel default(shared)
     #pragma omp single
-        w->num_threads = omp_get_num_threads();
+        w->num_threads = omp_get_num_threads()/inner_par;       //This is the number of threads in outer loop.
 
     w->thread_parts = (thread_part_t *)malloc( sizeof(thread_part_t) * w->num_threads);
     memset(w->thread_parts, 0, sizeof(thread_part_t) * w->num_threads);
