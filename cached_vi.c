@@ -11,7 +11,8 @@
 #include <sys/time.h>
 #include <omp.h>
 
-#define NUM_ITERS_NON_LEADERS 1
+#define NUM_ITERS_NON_LEADERS 5
+int inner_par = 2;
 
 double heat_epsilon_partition_initial;
 double heat_epsilon_overall;
@@ -283,6 +284,7 @@ double value_iterate( world_t *w, double epsilon_partition_initial, double epsil
     heat_epsilon_partition_initial = epsilon_partition_initial;
     heat_epsilon_overall = epsilon_overall;
     //maxheat = 0;
+    
     while (level1_part_available_to_process(w))
     {
         level1_part = get_next_level1_part(w);
@@ -332,7 +334,7 @@ int find_new_leader(world_t *w)
 
 double value_iterate_level1_partition( world_t *w, int level1_part )
 {
-    int i, l_part, next_level0_part;
+    int i, l_part, next_level0_part, nthreads, outer_threads;
     double  tmp, maxheat = 0; int tid;
     
     w->level1_parts[level1_part].convergence_factor = heat_epsilon_overall;
@@ -340,7 +342,7 @@ double value_iterate_level1_partition( world_t *w, int level1_part )
     clear_level0_queue(w);      //Only master thread does this. omp
     clear_level0_processing_bit_queue(w);
     clear_level0_wait_q(w);
-    clear_processor_busy_queue(w);
+//    clear_processor_busy_queue(w);
     for (i=0; i< w->level1_parts[level1_part].num_sub_parts; i++ )
     {
         l_part = w->level1_parts[level1_part].sub_parts[i];
@@ -351,10 +353,25 @@ double value_iterate_level1_partition( world_t *w, int level1_part )
         }
     }  //Parallelize using workshare construct. omp
     
-    #pragma omp parallel default(shared) private(next_level0_part, tmp, tid)
+    omp_set_nested(1);
+    printf("Nested parallelism is %s\n", omp_get_nested() ? "supported" : "not supported");
+
+#pragma omp parallel default(shared)
+#pragma omp single
+    {
+    outer_threads=omp_get_num_threads()/inner_par;
+    }
+    
+    #pragma omp parallel default(shared) private(next_level0_part, tmp, tid) num_threads(outer_threads)
     {
     //Don't let this loop terminate for any thread until there is something in processing. New parts may appear as the processing partitions complete.
         tid = omp_get_thread_num();
+        if (tid == 0)
+        {
+            nthreads = omp_get_num_threads();
+            printf("Number of threads:%d--------\n",nthreads);
+            printf("Mum items in q=%d, num subparts=%d------\n",part_available_to_process(w),w->level1_parts[level1_part].num_sub_parts);
+        }
         while (part_available_to_process(w))// || processing_bit_queue_has_items(w) )
         {
             next_level0_part = get_next_part(w, tid);
@@ -364,7 +381,7 @@ double value_iterate_level1_partition( world_t *w, int level1_part )
                     test_and_set_leader(w, tid);
                 tmp = value_iterate_partition(w, next_level0_part, tid);     //Sets a convergence factor if not set and performs VI with it.
                 
-                clear_processor_busy_flag(w, tid);      //Just in case processor busy was left. Shouldn't be the case.
+                //clear_processor_busy_flag(w, tid);      //Just in case processor busy was left. Shouldn't be the case.
                 clear_level0_processing_flag(w, next_level0_part);      //Just incase.
             }
             else if (isLeader(w, tid))
@@ -372,12 +389,12 @@ double value_iterate_level1_partition( world_t *w, int level1_part )
                 w->leader_thread = -1;
                 //find_new_leader(w);
                 printf("Leader thread was:%d. New leader: %d\n",tid, w->leader_thread);
-                clear_processor_busy_flag(w, tid);
+                // clear_processor_busy_flag(w, tid);
                 continue;
             }
             else
             {
-                clear_processor_busy_flag(w, tid);
+                //clear_processor_busy_flag(w, tid);
                 continue;
             }
             #pragma omp critical (vi_level1_bookeeping)
@@ -416,7 +433,7 @@ double value_iterate_partition( world_t *w, int l_part, int threadID )
     
     int g_end_ext_partition, l_end_ext_state, index1 = 0, index2 = 0;
     val_t *val_state_action;
-    double tempvalread = 0.0;
+    double tempvalread = 0.0;int chunk;
     //int tid;
     //tid = omp_get_thread_num();
     //printf("Processing l_part=%d conv factor=%f with tid=%d\n",l_part,w->parts[l_part].convergence_factor,tid);
@@ -448,8 +465,11 @@ double value_iterate_partition( world_t *w, int l_part, int threadID )
         else if ( (w->parts[l_part].convergence_factor > heat_epsilon_overall) && (w->parts[l_part].washes % 10 == 0) )
             w->parts[l_part].convergence_factor /= 10;
 //    }
-    max_heat = 0;
+    max_heat = 0;chunk = state_cnt/inner_par;
     //First iteration of the partition.
+#pragma omp parallel for default(shared) num_threads(inner_par) private(i, l_state, delta)  \
+ schedule(dynamic,chunk)      \
+ reduction(max:max_heat)
     for ( i = 0; i < state_cnt; i++ )
     {
         l_state = pp->variable_ordering[i];
@@ -480,6 +500,10 @@ double value_iterate_partition( world_t *w, int l_part, int threadID )
             //It attains value of max heat in that iteration and keeps on reducing with every iteration.
             //It signifies that we are making progress within the partition.
             part_internal_heat = 0;
+
+#pragma omp parallel for default(shared) num_threads(inner_par) private(i, l_state, delta)  \
+ schedule(dynamic,chunk)      \
+ reduction(max:part_internal_heat)
             for ( i = 0; i < state_cnt; i++ )
             {
                 l_state = pp->variable_ordering[i];
@@ -512,7 +536,7 @@ double value_iterate_partition( world_t *w, int l_part, int threadID )
         w->parts[l_part].convergence_factor /= 10;
     }
 
-    clear_processor_busy_flag(w, threadID);
+    //clear_processor_busy_flag(w, threadID);
     //#pragma omp atomic update
     w->val_update_iters_time += (float)(clock() - update_start_time)/CLOCKS_PER_SEC;
 
@@ -616,7 +640,7 @@ int set_dirty_level0_processing(world_t *w, int l_part, int threadID)
     int bit_added = 0;
 //#pragma omp critical (processing_bit_queue)
     bit_added = queue_add_bit(w->part_level0_processing_bit_queue, l_part);
-    bit_added = queue_add_bit(w->processor_busy_bitq, threadID);
+    //bit_added = queue_add_bit(w->processor_busy_bitq, threadID);
     return bit_added;
 }
 int clear_level0_processing_flag(world_t *w, int l_part)
@@ -678,7 +702,7 @@ void add_partition_for_eval(world_t *w, int l_part)
 #pragma omp critical (part_queue)
     {
         queue_add(w->part_queue, l_part);
-        //        set_dirty(w, l_part);
+        set_dirty(w, l_part);
     }
 }
 int pop_level0_queue(world_t *w, int* next_part)

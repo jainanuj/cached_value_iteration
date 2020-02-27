@@ -12,9 +12,9 @@
 #include "intqueue.h"
 #include "intheap.h"
 
-#define PART_SIZE  3//5000//6100       //3
+#define PART_SIZE  500 //5000//6100       //3
 #define ARR_SIZE  1000000
-#define NUM_PARTS_IN_LEVEL1 1000
+#define NUM_PARTS_IN_LEVEL1 10000
 
 
 typedef struct vec_t {
@@ -116,6 +116,9 @@ typedef struct world_t {
     queue *part_level1_queue;
     bit_queue *part_level0_bit_queue;
     bit_queue *part_level0_processing_bit_queue;
+    bit_queue *part_level0_waiting_bitq;
+    bit_queue *processor_busy_bitq;
+    int leader_thread;
     
 //    bit_queue *terminal_bit_queue;
 //    bit_queue *dead_bit_queue;
@@ -123,7 +126,9 @@ typedef struct world_t {
     
     int cur_part_sorting;
     unsigned long num_value_updates;
+    unsigned long num_value_updates_attempted;
     unsigned long num_value_updates_iters;      //Counter for all cached updates.
+    unsigned long num_value_update_iters_attempted;
     unsigned long new_partition_wash;
     unsigned long total_int_deps;
     unsigned long total_ext_deps;
