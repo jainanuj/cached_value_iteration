@@ -40,6 +40,7 @@ double cache_aware_vi(struct StateListNode *list, int MaxIter, int round, int co
 #endif
     w = init_world(list, component_size, round);   //Divides the component into partitions. Allocating states per part. & level1 parts.
     initialize_partitions( w );
+    printf("Num global partitions=%d------>>>\n",w->num_global_parts);
     
     if (w->part_level0_to_level1 != NULL)
         initialize_level1_partitions(w);
@@ -231,7 +232,9 @@ world_t *init_world(struct StateListNode *list, int component_size, int round)
     if (component_size % PART_SIZE > 0)
         w->num_global_parts += 1;
     w->num_global_parts += 1;
-    
+
+    printf("ComponentSize:%d;Global states:%d;part size:%d;global parts:%d----\n",component_size,w->num_global_states,PART_SIZE,w->num_global_parts);
+
     w->parts = (part_t *)malloc( sizeof(part_t) * w->num_global_parts );
     if ( w->parts == NULL ) {
         wlog( 1, "Could not allocate partition array!\n" );
@@ -310,7 +313,7 @@ world_t *init_world(struct StateListNode *list, int component_size, int round)
     w->part_level0_waiting_bitq = create_bit_queue(w->num_global_parts);
     //w->processor_busy_bitq = create_bit_queue(omp_get_num_threads());
     w->leader_thread = 0;
-    if ( w->part_level0_bit_queue == NULL || w->part_level0_processing_bit_queue == NULL || w->part_level0_waiting_bitq == NULL)// || w->processor_busy_bitq == NULL) 
+    if ( w->part_level0_bit_queue == NULL || w->part_level0_processing_bit_queue == NULL || w->part_level0_waiting_bitq == NULL)// || w->processor_busy_bitq == NULL)
     {
         wlog( 1, "Error creating bit queue!\n" );
         exit( 0 );

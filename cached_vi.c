@@ -12,6 +12,7 @@
 #include <omp.h>
 
 #define NUM_ITERS_NON_LEADERS 5
+int inner_par = 2;
 
 double heat_epsilon_partition_initial;
 double heat_epsilon_overall;
@@ -283,6 +284,7 @@ double value_iterate( world_t *w, double epsilon_partition_initial, double epsil
     heat_epsilon_partition_initial = epsilon_partition_initial;
     heat_epsilon_overall = epsilon_overall;
     //maxheat = 0;
+    
     while (level1_part_available_to_process(w))
     {
         level1_part = get_next_level1_part(w);
@@ -332,7 +334,7 @@ int find_new_leader(world_t *w)
 
 double value_iterate_level1_partition( world_t *w, int level1_part )
 {
-    int i, l_part, next_level0_part, nthreads;
+    int i, l_part, next_level0_part, nthreads, outer_threads;
     double  tmp, maxheat = 0; int tid;
     
     w->level1_parts[level1_part].convergence_factor = heat_epsilon_overall;
@@ -351,13 +353,25 @@ double value_iterate_level1_partition( world_t *w, int level1_part )
         }
     }  //Parallelize using workshare construct. omp
     
-    #pragma omp parallel default(shared) private(next_level0_part, tmp, tid)
+    omp_set_nested(1);
+    printf("Nested parallelism is %s\n", omp_get_nested() ? "supported" : "not supported");
+
+#pragma omp parallel default(shared)
+#pragma omp single
+    {
+    outer_threads=omp_get_num_threads()/inner_par;
+    }
+    
+    #pragma omp parallel default(shared) private(next_level0_part, tmp, tid) num_threads(outer_threads)
     {
     //Don't let this loop terminate for any thread until there is something in processing. New parts may appear as the processing partitions complete.
         tid = omp_get_thread_num();
-	nthreads = omp_get_num_threads();
-	if (tid == 0)
-	   printf("Number of threads:%d------\n",nthreads);
+        if (tid == 0)
+        {
+            nthreads = omp_get_num_threads();
+            printf("Number of threads:%d--------\n",nthreads);
+            printf("Mum items in q=%d, num subparts=%d------\n",part_available_to_process(w),w->level1_parts[level1_part].num_sub_parts);
+        }
         while (part_available_to_process(w))// || processing_bit_queue_has_items(w) )
         {
             next_level0_part = get_next_part(w, tid);
@@ -421,7 +435,7 @@ double value_iterate_partition( world_t *w, int l_part, int threadID )
     
     int g_end_ext_partition, l_end_ext_state, index1 = 0, index2 = 0;
     val_t *val_state_action;
-    double tempvalread = 0.0;
+    double tempvalread = 0.0;int chunk;
     //int tid;
     //tid = omp_get_thread_num();
     //printf("Processing l_part=%d conv factor=%f with tid=%d\n",l_part,w->parts[l_part].convergence_factor,tid);
@@ -453,8 +467,11 @@ double value_iterate_partition( world_t *w, int l_part, int threadID )
         else if ( (w->parts[l_part].convergence_factor > heat_epsilon_overall) && (w->parts[l_part].washes % 10 == 0) )
             w->parts[l_part].convergence_factor /= 10;
 //    }
-    max_heat = 0;
+    max_heat = 0;chunk = state_cnt/inner_par;
     //First iteration of the partition.
+#pragma omp parallel for default(shared) num_threads(inner_par) private(i, l_state, delta)  \
+ schedule(dynamic,chunk)      \
+ reduction(max:max_heat)
     for ( i = 0; i < state_cnt; i++ )
     {
         l_state = pp->variable_ordering[i];
@@ -485,6 +502,10 @@ double value_iterate_partition( world_t *w, int l_part, int threadID )
             //It attains value of max heat in that iteration and keeps on reducing with every iteration.
             //It signifies that we are making progress within the partition.
             part_internal_heat = 0;
+
+#pragma omp parallel for default(shared) num_threads(inner_par) private(i, l_state, delta)  \
+ schedule(dynamic,chunk)      \
+ reduction(max:part_internal_heat)
             for ( i = 0; i < state_cnt; i++ )
             {
                 l_state = pp->variable_ordering[i];
@@ -683,7 +704,7 @@ void add_partition_for_eval(world_t *w, int l_part)
 #pragma omp critical (part_queue)
     {
         queue_add(w->part_queue, l_part);
-        //        set_dirty(w, l_part);
+        set_dirty(w, l_part);
     }
 }
 int pop_level0_queue(world_t *w, int* next_part)
