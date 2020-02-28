@@ -113,6 +113,7 @@ double cache_aware_vi(struct StateListNode *list, int MaxIter, int round, int co
 //    init_level1_part_queue(w);
 //    init_level0_bit_queue(w);
     omp_set_nested(1);
+    omp_set_max_active_levels(2);
     printf("Nested parallelism is %s\n", omp_get_nested() ? "supported" : "not supported");
     printf("Num of threads:%d\n",w->num_threads);
 #pragma omp parallel default(shared) private(retVal, tid) num_threads(w->num_threads)
