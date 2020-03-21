@@ -1,6 +1,7 @@
 run the command 'ssh-keygen -o'
 Upload the key to github
 git clone git@github.com:jainanuj/cached_value_iteration.git
+git checkout ubuntuChanges
 move download and install files to the parent folder
 run the install file - 'run_install'
 move to the cached value iteration folder
