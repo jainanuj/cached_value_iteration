@@ -1,0 +1,11 @@
+setrlimit set the stack size to desired - 8MB
+ Performance counter stats for './solve -p ../MDPs/evaluated/sap_900x900.mdp -method ftvi':
+
+      18977.103450      task-clock (msec)         #    1.000 CPUs utilized          
+    79,191,988,604      cycles                    #    4.173 GHz                    
+   106,460,721,859      instructions              #    1.34  insn per cycle         
+       739,825,877      cache-references          #   38.985 M/sec                  
+       650,522,970      cache-misses              #   87.929 % of all cache refs    
+
+      18.980046408 seconds time elapsed
+

@@ -1,0 +1,11 @@
+setrlimit set the stack size to desired - 8MB
+ Performance counter stats for './solve -p ../MDPs/evaluated/dap_100x100x10x10.mdp -method ftvi':
+
+      57085.695214      task-clock (msec)         #    1.000 CPUs utilized          
+   244,087,842,687      cycles                    #    4.276 GHz                    
+   256,943,195,056      instructions              #    1.05  insn per cycle         
+     1,925,040,786      cache-references          #   33.722 M/sec                  
+     1,604,870,651      cache-misses              #   83.368 % of all cache refs    
+
+      57.111729888 seconds time elapsed
+
