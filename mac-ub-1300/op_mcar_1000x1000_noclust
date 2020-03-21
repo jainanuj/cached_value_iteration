@@ -1,0 +1,47 @@
+
+Initial state: 4498
+Reading complete
+
+Number of goal reachable states: 897450
+***************************************************************
+Solve ../MDPs/evaluated/mcar_1000x1000.mdp with 1000000 states, 0 actions and discount of 1.000000
+Using ftvi with epsilon 0.000001
+Using transition prob 0.900000
+Using heuristic discount 1.000000
+***************************************************************
+Shortest distance to goal 977
+Total actions 1996397 per state 1.996397Starting next search batch
+
+Initial 0 trials  f: 1914.741405 fprime: 8962.295528 error: 1053.890927
+Old v: 977.000000 new v: 8709.618820 change ratio of initial state value is 0.112175Starting next search batch
+
+Old v: 8709.618820 new v: 8709.652266 change ratio of initial state value is 0.999996
+State expanded: 0
+Initial 20 trials( 10.732457 secs.)  f: 8709.652266
+Total number of backups 8308949
+Going to build components
+Recursion count in f_reachability is: 600000
+Recursion count in f_dfsR is: 600000
+Bad Error in f_dfsR!!!!. Node number is: -1 out of bounds.
+
+Recursion count in f_dfs is: 600000
+Components: 232820
+elapsed time for building topological structure: 3.790518
+Total actions 1988927 per state 1.988927
+Solving components, no subdividing. Solving 102563 components
+Actual total number of Parts=590
+Partitioned in: 0.036916 secs
+Total internal dependents = 2184017; Ext = 2395861
+Actual Value_iterate function in: 159.286301 secs
+Update time taken = 106.589780; Update iters time taken = 51.746533 secs
+Number of Backups for round-102562 with ep_part=0.000001, ep_overall=0.000001:	434904796
+Number of new partition washes=156673, number of updates =203671196, number of update_iters=231233600
+Final Number of Backups for round-102562 with ep_part=0.000001, ep_overall=0.000001:	0. Total_iter backups =0
+Component in Cached Iter completed in: 165.388870 secs
+Couldn't solve component: 102562, in 10000 iterations. Error=9165.890625; Time=165.388870
+The size of component: 102562 is 767098
+
+Biggest component size: 767098
+102563 ( 180.146332 secs.)  f: 8709.652266 Converged!
+Number of solved components=102186 and unreachable components=376
+Total number of backups: 8450394
