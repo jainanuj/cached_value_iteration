@@ -330,17 +330,21 @@ double value_iterate_level1_partition( world_t *w, int level1_part )
             //Don't let this loop terminate for any thread until there is something in processing. New parts may appear as the processing partitions complete.
             tid = omp_get_thread_num();
             nthreads = omp_get_num_threads();
-            if (tid == 0)
-                printf("Number of threads:%d------\n",nthreads);
+            printf("Number of threads:%d------\n",nthreads);
         
         #pragma omp task untied
-            while (part_available_to_process(w) || processing_bit_queue_has_items(w) || scheduled_bit_queue_has_items(w))
+            while (part_available_to_process(w))// || processing_bit_queue_has_items(w) || scheduled_bit_queue_has_items(w))
             {
                 next_level0_part = get_next_part(w, tid);       //Pops part from q and adds to scheduled bitmap.
-                #pragma omp task firstprivate(next_level0_part) private(tmp) if (next_level0_part >= 0)
+                tid = omp_get_thread_num();
+                printf("Generating on tid=%d, on part=%d\n",tid, next_level0_part);
+
+                #pragma omp task firstprivate(next_level0_part) private(tmp) if (next_level0_part >= 0) priority(5)
                 {
                     if (next_level0_part >= 0)
                     {
+                        tid = omp_get_thread_num();
+                        printf("On tid=%d, Processing part=%d\n",tid, next_level0_part);
                         w->processing_items++; //processing_bit_queue_has_items( w);
                         move_scheduled_part_to_processing(w, next_level0_part);
                         tmp = value_iterate_partition(w, next_level0_part, tid);     //Sets a convergence factor if not set and performs VI with it.
