@@ -117,8 +117,7 @@ typedef struct world_t {
     bit_queue *part_level0_bit_queue;
     bit_queue *part_level0_processing_bit_queue;
     bit_queue *part_level0_waiting_bitq;
-    bit_queue *processor_busy_bitq;
-    int leader_thread;
+    bit_queue *part_scheduled_bitq;
     
 //    bit_queue *terminal_bit_queue;
 //    bit_queue *dead_bit_queue;
@@ -147,6 +146,7 @@ typedef struct world_t {
     //This maps level0 parts to level1 parts
     int *part_level0_to_level1;
     int *gsi_to_lsi;
+    int processing_items;
     
 } world_t;
 

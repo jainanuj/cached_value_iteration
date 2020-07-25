@@ -308,9 +308,8 @@ world_t *init_world(struct StateListNode *list, int component_size, int round)
     w->part_level0_bit_queue = create_bit_queue(w->num_global_parts);
     w->part_level0_processing_bit_queue = create_bit_queue(w->num_global_parts);
     w->part_level0_waiting_bitq = create_bit_queue(w->num_global_parts);
-    w->processor_busy_bitq = create_bit_queue(omp_get_num_threads());
-    w->leader_thread = 0;
-    if ( w->part_level0_bit_queue == NULL || w->part_level0_processing_bit_queue == NULL || w->part_level0_waiting_bitq == NULL || w->processor_busy_bitq == NULL) {
+    w->part_scheduled_bitq = create_bit_queue(w->num_global_parts);
+    if ( w->part_level0_bit_queue == NULL || w->part_level0_processing_bit_queue == NULL || w->part_level0_waiting_bitq == NULL || w->part_scheduled_bitq == NULL) {
         wlog( 1, "Error creating bit queue!\n" );
         exit( 0 );
     }

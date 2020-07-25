@@ -73,7 +73,7 @@ int pick_part_and_wash_it( world_t *w )
     w->parts_processed++;
     w->parts[ l_part_num ].visits++;
     
-    heat_left = value_iterate_partition( w, l_part_num, w->leader_thread );
+    heat_left = value_iterate_partition( w, l_part_num, 0 );
         /*     fprintf( stderr, "%.4f\n", maxheat ); */
     
     update_partition_potentials( w, l_part_num, heat_left );
@@ -301,34 +301,6 @@ double value_iterate( world_t *w, double epsilon_partition_initial, double epsil
     return tmp;
 }
 
-int isLeader(world_t *w, int threadID)
-{
-//#pragma omp critical (leader_thread)
-    return w->leader_thread == threadID;
-}
-
-void test_and_set_leader(world_t *w, int threadID)
-{
-#pragma omp critical (leader_thread)
-    {
-        if (w->leader_thread < 0)
-        {
-            w->leader_thread = threadID;
-            printf("There was no leader. New elected leader is: %d\n",w->leader_thread);
-        }
-    }
-}
-int find_new_leader(world_t *w)
-{
-    #pragma omp critical (leader_thread)
-    {
-        if (bit_queue_has_items(w->processor_busy_bitq))
-            w->leader_thread = bit_queue_last_item(w->processor_busy_bitq);
-        else
-            w->leader_thread = -1;
-    }
-    return w->leader_thread;
-}
 
 double value_iterate_level1_partition( world_t *w, int level1_part )
 {
@@ -336,76 +308,63 @@ double value_iterate_level1_partition( world_t *w, int level1_part )
     double  tmp, maxheat = 0; int tid;
     
     w->level1_parts[level1_part].convergence_factor = heat_epsilon_overall;
-    w->leader_thread = 0;
     clear_level0_queue(w);      //Only master thread does this. omp
     clear_level0_processing_bit_queue(w);
-    clear_level0_wait_q(w);
+    clear_level0_wait_bit_q(w);
+    clear_scheduled_bit_q(w);
     //clear_processor_busy_queue(w);
     for (i=0; i< w->level1_parts[level1_part].num_sub_parts; i++ )
     {
         l_part = w->level1_parts[level1_part].sub_parts[i];
         if (check_dirty(w, l_part) )
         {
-            add_level0_queue(w, l_part);
+            add_level0_queue(w, l_part);        //Building the Active q.
             clear_level0_dirty_flag(w, l_part);
         }
     }  //Parallelize using workshare construct. omp
-    
-    #pragma omp parallel default(shared) private(next_level0_part, tmp, tid)
+    w->processing_items = 0;
+    #pragma omp parallel default(shared) private(tmp, tid, next_level0_part)      //Solve for maxheat
     {
-    //Don't let this loop terminate for any thread until there is something in processing. New parts may appear as the processing partitions complete.
-        tid = omp_get_thread_num();
-	nthreads = omp_get_num_threads();
-	if (tid == 0)
-	   printf("Number of threads:%d------\n",nthreads);
-        while (part_available_to_process(w))// || processing_bit_queue_has_items(w) )
+    #pragma omp single
         {
-            next_level0_part = get_next_part(w, tid);
-            if (next_level0_part >= 0)
+            //Don't let this loop terminate for any thread until there is something in processing. New parts may appear as the processing partitions complete.
+            tid = omp_get_thread_num();
+            nthreads = omp_get_num_threads();
+            if (tid == 0)
+                printf("Number of threads:%d------\n",nthreads);
+        
+        #pragma omp task untied
+            while (part_available_to_process(w) || processing_bit_queue_has_items(w) || scheduled_bit_queue_has_items(w))
             {
-                if (w->leader_thread == -1)
-                    test_and_set_leader(w, tid);
-                tmp = value_iterate_partition(w, next_level0_part, tid);     //Sets a convergence factor if not set and performs VI with it.
-                
-                //clear_processor_busy_flag(w, tid);      //Just in case processor busy was left. Shouldn't be the case.
-                clear_level0_processing_flag(w, next_level0_part);      //Just incase.
-            }
-            else if (isLeader(w, tid))
-            {
-                w->leader_thread = -1;
-                //find_new_leader(w);
-                printf("Leader thread was:%d. New leader: %d\n",tid, w->leader_thread);
-                //clear_processor_busy_flag(w, tid);
-                continue;
-            }
-            else
-            {
-                //clear_processor_busy_flag(w, tid);
-                continue;
-            }
-            #pragma omp critical (vi_level1_bookeeping)
-            {
-                w->new_partition_wash++;
-                w->parts[next_level0_part].washes++;
-                if (tmp > heat_epsilon_overall) //w->parts[next_level0_part].convergence_factor
+                next_level0_part = get_next_part(w, tid);       //Pops part from q and adds to scheduled bitmap.
+                #pragma omp task firstprivate(next_level0_part) private(tmp) if (next_level0_part >= 0)
                 {
-                    if (w->parts[next_level0_part].convergence_factor > heat_epsilon_overall)
-                        w->level1_parts[level1_part].convergence_factor = w->parts[next_level0_part].convergence_factor;
-                    if (w->part_queue->numitems > w->level1_parts[level1_part].num_sub_parts )
-                        wlog(1, "storing too many items in level0 q. NumItems = %d\n",w->part_queue->numitems);
-                    maxheat = tmp>maxheat ? tmp: maxheat;
-        /*            if (w->parts[next_level0_part].convergence_factor > heat_epsilon_overall)
+                    if (next_level0_part >= 0)
                     {
-                        add_partition_for_eval(w, next_level0_part);        //Add it back to the queue as even though it converged to convergence factor, the factor was bigger than final epsilon.
-                    }*/
+                        w->processing_items++; //processing_bit_queue_has_items( w);
+                        move_scheduled_part_to_processing(w, next_level0_part);
+                        tmp = value_iterate_partition(w, next_level0_part, tid);     //Sets a convergence factor if not set and performs VI with it.
+                        
+                        if (tmp > heat_epsilon_overall) //w->parts[next_level0_part].convergence_factor
+                        {
+                            if (w->parts[next_level0_part].convergence_factor > heat_epsilon_overall)
+                            #pragma omp critical (level1_conv_factor)
+                                w->level1_parts[level1_part].convergence_factor = w->parts[next_level0_part].convergence_factor;
+                            if (w->part_queue->numitems > w->level1_parts[level1_part].num_sub_parts )
+                                wlog(1, "storing too many items in level0 q. NumItems = %d\n",w->part_queue->numitems);
+                            maxheat = tmp>maxheat ? tmp: maxheat;       //TBD maxheat
+            /*            if (w->parts[next_level0_part].convergence_factor > heat_epsilon_overall)
+                        {
+                            add_partition_for_eval(w, next_level0_part);        //Add it back to the queue as even though it converged to convergence factor, the factor was bigger than final epsilon.
+                        }*/
+                        }
+                        w->processing_items--; //processing_bit_queue_has_items( w);
+                    }
+                    #pragma omp flush
                 }
             }
         }
-        if (isLeader(w, tid))
-            w->leader_thread = -1;      //Leader thread has exited, so there's no leader now.
-        #pragma omp barrier
-
-    }       //All threads join after this.
+    }  //All threads join after this.
     return maxheat;
 }
 
@@ -436,23 +395,17 @@ double value_iterate_partition( world_t *w, int l_part, int threadID )
     update_start_time = clock();
     
     dep_part_hash = w->parts[l_part].my_ext_parts_states;
-    //Iterate over all external states grouped by partitions they belong to.
-    //Load their values from their respective partition arrays.
-//#pragma omp critical (load_external_states)
-//    {
-        while ( med_hash_hash_iterate( dep_part_hash, &index1, &index2,
-                                      &g_end_ext_partition, &l_end_ext_state, &val_state_action ))
-        {
-//#pragma omp atomic read
-            tempvalread = w->parts[g_end_ext_partition].values.elts[l_end_ext_state]; //Setting the value of that ext state
-//#pragma omp atomic write
-            val_state_action->d = tempvalread;
-        }
-        if (w->parts[l_part].convergence_factor == -1)
-            w->parts[l_part].convergence_factor = heat_epsilon_partition_initial;
-        else if ( (w->parts[l_part].convergence_factor > heat_epsilon_overall) && (w->parts[l_part].washes % 10 == 0) )
-            w->parts[l_part].convergence_factor /= 10;
-//    }
+#pragma omp flush
+    while ( med_hash_hash_iterate( dep_part_hash, &index1, &index2,
+                                  &g_end_ext_partition, &l_end_ext_state, &val_state_action ))
+    {
+        tempvalread = w->parts[g_end_ext_partition].values.elts[l_end_ext_state]; //Setting the value of that ext state
+        val_state_action->d = tempvalread;
+    }
+    if (w->parts[l_part].convergence_factor == -1)
+        w->parts[l_part].convergence_factor = heat_epsilon_partition_initial;
+    else if ( (w->parts[l_part].convergence_factor > heat_epsilon_overall) && (w->parts[l_part].washes % 10 == 0) )
+        w->parts[l_part].convergence_factor /= 10;
     max_heat = 0;
     //First iteration of the partition.
     for ( i = 0; i < state_cnt; i++ )
@@ -466,20 +419,15 @@ double value_iterate_partition( world_t *w, int l_part, int threadID )
         max_heat = fabs( delta ) > max_heat ? fabs( delta ): max_heat;
     }
     
-//#pragma omp atomic update
     w->val_update_time += (float)(clock() - update_start_time)/CLOCKS_PER_SEC;
     
     update_start_time = clock();
-/*    if (threadID != w->leader_thread)
-        converge_this_thrd = w->parts[l_part].convergence_factor * 10;
-    else*/
-        converge_this_thrd = w->parts[l_part].convergence_factor;
-    if (max_heat > converge_this_thrd)
+    if (max_heat > w->parts[l_part].convergence_factor)
     {
         //This is equivalent to while(true) as we don't change max_heat in the while loop.
         //If max_heat == 0 we don't need to enter this loop as partition is already cold.
-        part_internal_heat = 0; j = NUM_ITERS_NON_LEADERS;
-        while(j > 0)
+        part_internal_heat = 0; //j = NUM_ITERS_NON_LEADERS;
+        while(max_heat > 0)
         {
             //part_internal_heat initialized to 0 at beginning of each iteration.
             //It attains value of max heat in that iteration and keeps on reducing with every iteration.
@@ -495,7 +443,6 @@ double value_iterate_partition( world_t *w, int l_part, int threadID )
                 }
                 part_internal_heat = fabs( delta ) > part_internal_heat ? fabs( delta ): part_internal_heat;
             }
-        //#pragma omp atomic update
             w->parts[ l_part ].washes++;
             numPartitionIters++;
             if (part_internal_heat > max_heat)
@@ -507,44 +454,34 @@ double value_iterate_partition( world_t *w, int l_part, int threadID )
                 //  if ( verbose ) { wlog( 1, "Partition %d was processed %d number of times. Part Internal Heat is: %.6f. Max heat to begin with is: %.6f \n", l_part, numPartitionIters, part_internal_heat, max_heat ); }
                 break;
             }
-            if (threadID != w->leader_thread)
-                j--;
         }
     }
     else if (w->parts[l_part].convergence_factor > heat_epsilon_overall)
     {
-//    #pragma omp atomic update
         w->parts[l_part].convergence_factor /= 10;
     }
-
-    //clear_processor_busy_flag(w, threadID);
-    //#pragma omp atomic update
     w->val_update_iters_time += (float)(clock() - update_start_time)/CLOCKS_PER_SEC;
+
+    clear_level0_processing_flag(w, l_part);
+#pragma omp critical
+    {
+        if (check_dirty_waiting_q(w, l_part))
+        {
+            clear_waiting_dirty_flag(w, l_part);
+            add_partition_for_eval(w, l_part);
+        }
+    }
 
     if (max_heat > heat_epsilon_overall)
     {
-        if (isLeader(w, threadID)) //w->parts[next_level0_part].convergence_factor
-        {
             //Add local deps to queue. Mark global as dirty.
             if (max_heat > w->parts[l_part].convergence_factor)
                 add_level0_partition_deps_for_eval(w, l_part, 1);     //Add the dependents immediately to queue.
             else
                 add_level0_partition_deps_for_eval(w, l_part, 0);     //This is just a deferred add. only setting the dirty bit not adding to queue.
-        }
-        else
-        {
-            if (check_dirty_waiting_q(w, l_part))
-                clear_waiting_dirty_flag(w, l_part);
-            add_partition_for_eval(w, l_part);
-        }
     }
-    if (check_dirty_waiting_q(w, l_part))
-    {
-        clear_waiting_dirty_flag(w, l_part);
-        add_partition_for_eval(w, l_part);
-    }
-    clear_level0_processing_flag(w, l_part);
-    
+    w->parts[l_part].washes++;
+
     return max_heat;
 }
 
@@ -586,14 +523,18 @@ int clear_level0_processing_bit_queue(world_t *w)
 {
     return empty_bit_queue(w->part_level0_processing_bit_queue);
 }
-int clear_processor_busy_queue(world_t *w)
-{
-    return empty_bit_queue(w->processor_busy_bitq);
-}
 
-int clear_level0_wait_q(world_t *w)
+int clear_level0_wait_bit_q(world_t *w)
 {
     return empty_bit_queue(w->part_level0_waiting_bitq);
+}
+int clear_scheduled_bit_q(world_t *w)
+{
+    return empty_bit_queue(w->part_scheduled_bitq);
+}
+int clear_level0_bit_q(world_t *w)
+{
+    return empty_bit_queue(w->part_level0_bit_queue);
 }
 
 unsigned long check_dirty(world_t *w, int l_part)
@@ -605,7 +546,7 @@ unsigned long check_dirty(world_t *w, int l_part)
 unsigned long check_dirty_level0_processing(world_t *w, int l_part)
 {
     unsigned long obj_present = 0;
-//#pragma omp critical (processing_bit_queue)
+#pragma omp critical (processing_bit_queue)
     obj_present = check_bit_obj_present(w->part_level0_processing_bit_queue, l_part);
     return obj_present;
 }
@@ -616,27 +557,36 @@ int processing_bit_queue_has_items(world_t *w)
     num_items = bit_queue_has_items(w->part_level0_processing_bit_queue);
     return num_items;
 }
+int scheduled_bit_queue_has_items(world_t *w)
+{
+    int num_items = 0;
+//#pragma omp critical (processing_bit_queue)
+    num_items = bit_queue_has_items(w->part_scheduled_bitq);
+    return num_items;
+}
+
 int set_dirty_level0_processing(world_t *w, int l_part, int threadID)
 {
     int bit_added = 0;
-//#pragma omp critical (processing_bit_queue)
+#pragma omp critical
     bit_added = queue_add_bit(w->part_level0_processing_bit_queue, l_part);
+    return bit_added;
+}
+
+int set_dirty_level0_scheduled(world_t *w, int l_part)
+{
+    int bit_added = 0;
+#pragma omp critical
+    bit_added = queue_add_bit(w->part_scheduled_bitq, l_part);
     //bit_added = queue_add_bit(w->processor_busy_bitq, threadID);
     return bit_added;
 }
 int clear_level0_processing_flag(world_t *w, int l_part)
 {
     int proc_bit_popped;
-//#pragma omp critical (processing_bit_queue)
+#pragma omp critical
     proc_bit_popped = bit_queue_pop(w->part_level0_processing_bit_queue, l_part);
     return proc_bit_popped;
-}
-
-int clear_processor_busy_flag(world_t *w, int threadID)
-{
-    int proc_bit;
-    proc_bit = bit_queue_pop(w->processor_busy_bitq, threadID);
-    return proc_bit;
 }
 
 
@@ -724,21 +674,30 @@ int ext_parts_processing(world_t *w, int l_part)
 int get_next_part(world_t *w, int threadID)
 {
     int next_partition = -1;
-//    if (threadID != w->leader_thread)       //Test code only work on main thread. Should give equivalent to single thread.
-//        return next_partition;
+#pragma omp critical
     if (pop_level0_queue(w, &next_partition))
     {
         //OMP
         //Check next_partition in processing queue.
         //Iterate over all external states grouped by partitions they belong to.
         //Load their values from their respective partition arrays.
-        set_dirty_level0_processing(w, next_partition, threadID);
+        set_dirty_level0_scheduled(w, next_partition);
         //set_processor_flag(w, threadID);
         //If not present add it and return.
         //If present, in processing queue, put it back to the end of part queue
         //check next item on queue.
     }
     return next_partition;
+}
+
+int move_scheduled_part_to_processing(world_t *w, int l_part)
+{
+    int scheduled_popped; int bit_added;
+#pragma omp critical
+    {
+        scheduled_popped = bit_queue_pop(w->part_scheduled_bitq, l_part);
+        bit_added = queue_add_bit(w->part_level0_processing_bit_queue, l_part);
+    }
 }
 
 void add_level0_partition_deps_for_eval(world_t *w, int l_part_changed, int add_immediate)
@@ -752,12 +711,16 @@ void add_level0_partition_deps_for_eval(world_t *w, int l_part_changed, int add_
     index1 = 0;
     while ( med_hash_iterate( dep_part_hash, &index1, &l_start_part, &v ) )
     {
-        if (check_dirty_level0_processing(w, l_start_part))
+        #pragma omp critical
         {
-            set_dirty_waiting_q(w, l_start_part);
+            if (check_dirty_level0_processing(w, l_start_part) )
+            {
+                set_dirty_waiting_q(w, l_start_part);
+            }
+            else if (!(check_bit_obj_present(w->part_scheduled_bitq, l_start_part)) &&
+                        !(check_bit_obj_present(w->part_level0_waiting_bitq, l_start_part)) )
+                add_partition_for_eval(w, l_start_part);
         }
-        else //if (add_immediate == 1)*/
-            add_partition_for_eval(w, l_start_part);
     }
     dep_part_hash = w->parts[ l_part_changed ].my_global_dependents;
     index1 = 0;
@@ -770,7 +733,13 @@ void add_level0_partition_deps_for_eval(world_t *w, int l_part_changed, int add_
 
 int set_dirty(world_t *w, int l_part)
 {
-    return queue_add_bit(w->part_level0_bit_queue, l_part);
+    int added_bit;
+#pragma omp critical
+    {
+    added_bit = queue_add_bit(w->part_level0_bit_queue, l_part);
+    }
+    
+    return added_bit;
 }
 
 
@@ -784,13 +753,9 @@ double value_update( world_t *w, int l_part, int l_state )
     if (w->parts[l_part].states[l_state].goal == 1)
         return 0;
     
-//#pragma omp atomic read
     cval = w->parts[ l_part ].values.elts[ l_state ];
-    
     min_action = 0;
     value = reward_or_value( w, l_part, l_state, 0 );
-    
-    
     /* remember that there is an action bias! */
     nacts = w->parts[ l_part ].states[ l_state ].num_actions;
     for (action=1; action<nacts; action++)
@@ -801,15 +766,10 @@ double value_update( world_t *w, int l_part, int l_state )
             min_action = action;
         }
     }
-    
-    
     if (value <= cval)                      //For minimization it is <
     {
-//#pragma omp atomic write
         w->parts[l_part].states[l_state].bestAction = min_action;       //update best Action for this state.
-//#pragma omp atomic write
         w->parts[ l_part ].values.elts[ l_state ] = value;       //Update the V(s) for this state.
-//#pragma omp atomic update
         w->num_value_updates++;
         return cval - value;
 //    else
@@ -819,7 +779,6 @@ double value_update( world_t *w, int l_part, int l_state )
     }
     w->num_value_updates_attempted++;
     return 0;
-    
 }
 double reward_or_value( world_t *w, int l_part, int l_state, int a ) {
     double value, tmp;
@@ -942,7 +901,6 @@ double value_update_iters( world_t *w, int l_part, int l_state )
     
     if (w->parts[l_part].states[l_state].goal == 1)
         return 0;
-//#pragma omp atomic read
     cval = w->parts[ l_part ].values.elts[ l_state ];
     
     min_action = 0;
@@ -963,9 +921,7 @@ double value_update_iters( world_t *w, int l_part, int l_state )
 //    }
     if (value <= cval)          //For minimization <
     {
-//#pragma omp atomic write
         w->parts[ l_part ].values.elts[ l_state ] = value;       //Update the V(s,a) for this state.
-//#pragma omp atomic update
         w->num_value_updates_iters++;
         return cval - value;
 //    else
