@@ -30,8 +30,10 @@ int get_next_level1_part(world_t *w);
 void add_level1_parts_deps_for_eval(world_t *w, int level1_part_changed);
 int clear_level0_queue(world_t *w);
 int clear_level0_processing_bit_queue(world_t *w);
-int clear_level0_wait_q(world_t *w);
+int clear_level0_wait_bit_q(world_t *w);
 int clear_processor_busy_queue(world_t *w);
+int clear_scheduled_bit_q(world_t *w);
+int move_scheduled_part_to_processing(world_t *w, int l_part);
 
 unsigned long check_dirty(world_t *w, int l_part);
 unsigned long check_dirty_level0_processing(world_t *w, int l_part);
@@ -50,6 +52,8 @@ void test_and_set_leader(world_t *w, int threadID);
 int isLeader(world_t *w, int threadID);
 
 int processing_bit_queue_has_items(world_t *w);
+int scheduled_bit_queue_has_items(world_t *w);
+
 
 int pop_level0_queue(world_t *w, int* next_part);
 
