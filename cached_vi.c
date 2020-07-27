@@ -318,7 +318,7 @@ double value_iterate_level1_partition( world_t *w, int level1_part )
         l_part = w->level1_parts[level1_part].sub_parts[i];
         if (check_dirty(w, l_part) )
         {
-            add_level0_queue(w, l_part);        //Building the Active q.
+            add_partition_for_eval(w, l_part);        //Building the Active q.
             clear_level0_dirty_flag(w, l_part);
         }
     }  //Parallelize using workshare construct. omp
@@ -352,7 +352,6 @@ double value_iterate_level1_partition( world_t *w, int level1_part )
                         if (tmp > heat_epsilon_overall) //w->parts[next_level0_part].convergence_factor
                         {
                             if (w->parts[next_level0_part].convergence_factor > heat_epsilon_overall)
-                            #pragma omp critical (level1_conv_factor)
                                 w->level1_parts[level1_part].convergence_factor = w->parts[next_level0_part].convergence_factor;
                             if (w->part_queue->numitems > w->level1_parts[level1_part].num_sub_parts )
                                 wlog(1, "storing too many items in level0 q. NumItems = %d\n",w->part_queue->numitems);
@@ -466,13 +465,13 @@ double value_iterate_partition( world_t *w, int l_part, int threadID )
     }
     w->val_update_iters_time += (float)(clock() - update_start_time)/CLOCKS_PER_SEC;
 
-    clear_level0_processing_flag(w, l_part);
-#pragma omp critical
+#pragma omp critical        // on Task complete. Reset processing flag. Move part from waiting to eval.        TBD - minimize Criticals.
     {
-        if (check_dirty_waiting_q(w, l_part))
+        bit_queue_pop(w->part_level0_processing_bit_queue, l_part);
+        if (check_bit_obj_present(w->part_level0_waiting_bitq, l_part))
         {
-            clear_waiting_dirty_flag(w, l_part);
-            add_partition_for_eval(w, l_part);
+            bit_queue_pop(w->part_level0_waiting_bitq, l_part);
+            queue_add(w->part_queue, l_part);
         }
     }
 
@@ -550,21 +549,20 @@ unsigned long check_dirty(world_t *w, int l_part)
 unsigned long check_dirty_level0_processing(world_t *w, int l_part)
 {
     unsigned long obj_present = 0;
-#pragma omp critical (processing_bit_queue)
     obj_present = check_bit_obj_present(w->part_level0_processing_bit_queue, l_part);
     return obj_present;
 }
 int processing_bit_queue_has_items(world_t *w)
 {
     int num_items = 0;
-//#pragma omp critical (processing_bit_queue)
+//No cirical required for checking count.
     num_items = bit_queue_has_items(w->part_level0_processing_bit_queue);
     return num_items;
 }
 int scheduled_bit_queue_has_items(world_t *w)
 {
     int num_items = 0;
-//#pragma omp critical (processing_bit_queue)
+//No cirical required for checking count.
     num_items = bit_queue_has_items(w->part_scheduled_bitq);
     return num_items;
 }
@@ -572,7 +570,6 @@ int scheduled_bit_queue_has_items(world_t *w)
 int set_dirty_level0_processing(world_t *w, int l_part, int threadID)
 {
     int bit_added = 0;
-#pragma omp critical
     bit_added = queue_add_bit(w->part_level0_processing_bit_queue, l_part);
     return bit_added;
 }
@@ -580,15 +577,12 @@ int set_dirty_level0_processing(world_t *w, int l_part, int threadID)
 int set_dirty_level0_scheduled(world_t *w, int l_part)
 {
     int bit_added = 0;
-#pragma omp critical
     bit_added = queue_add_bit(w->part_scheduled_bitq, l_part);
-    //bit_added = queue_add_bit(w->processor_busy_bitq, threadID);
     return bit_added;
 }
 int clear_level0_processing_flag(world_t *w, int l_part)
 {
     int proc_bit_popped;
-#pragma omp critical
     proc_bit_popped = bit_queue_pop(w->part_level0_processing_bit_queue, l_part);
     return proc_bit_popped;
 }
@@ -598,21 +592,18 @@ int clear_level0_processing_flag(world_t *w, int l_part)
 unsigned long check_dirty_waiting_q(world_t *w, int l_part)
 {
     unsigned long obj_present = 0;
-//#pragma omp critical (waiting_bit_queue)
     obj_present = check_bit_obj_present(w->part_level0_waiting_bitq, l_part);
     return obj_present;
 }
 int set_dirty_waiting_q(world_t *w, int l_part)
 {
     int bit_added = 0;
-//#pragma omp critical (waiting_bit_queue)
     bit_added = queue_add_bit(w->part_level0_waiting_bitq, l_part);
     return bit_added;
 }
 int clear_waiting_dirty_flag(world_t *w, int l_part)
 {
     int waiting_bit_popped = 0;
-//#pragma omp critical (waiting_bit_queue)
     waiting_bit_popped = bit_queue_pop(w->part_level0_waiting_bitq, l_part);
     return waiting_bit_popped;
 }
@@ -621,29 +612,19 @@ int clear_waiting_dirty_flag(world_t *w, int l_part)
 int part_available_to_process(world_t *w)
 {
     int num_items = 0;
-//#pragma omp critical (part_queue)
+//No cirical required for checking count.
     num_items = queue_has_items(w->part_queue);
     return num_items;
 }
-int add_level0_queue(world_t *w, int l_part)
-{
-    int added = 0;
-#pragma omp critical (part_queue)
-    added = queue_add(w->part_queue, l_part);
-    return added;
-}
 void add_partition_for_eval(world_t *w, int l_part)
 {
-#pragma omp critical (part_queue)
-    {
+//#pragma omp critical        //This fn is never called in parallel. Add to active q. Absolutely requires critical so two threads don't add to same position in the queue.
         queue_add(w->part_queue, l_part);
-        //        set_dirty(w, l_part);
-    }
 }
 int pop_level0_queue(world_t *w, int* next_part)
 {
     int popped = 0;
-#pragma omp critical (part_queue)
+//#pragma omp critical       //Pop from Active q. Never called in parallel.
     popped = queue_pop(w->part_queue, next_part);
     return popped;
 }
@@ -651,9 +632,11 @@ int pop_level0_queue(world_t *w, int* next_part)
 
 int clear_level0_dirty_flag(world_t *w, int l_part)
 {
-    return bit_queue_pop(w->part_level0_bit_queue, l_part);
+    int bit_popped = 0;
+    bit_popped = bit_queue_pop(w->part_level0_bit_queue, l_part);
+    return bit_popped;
 }
-int ext_parts_processing(world_t *w, int l_part)
+/*int ext_parts_processing(world_t *w, int l_part)
 {
     med_hash_t *dep_part_hash;
     int g_end_ext_partition, l_end_ext_state, index1 = 0, index2 = 0, dirty_ext = 0;
@@ -673,23 +656,15 @@ int ext_parts_processing(world_t *w, int l_part)
         }
     }
     return dirty_ext;
-}
+}*/
 
 int get_next_part(world_t *w, int threadID)
 {
     int next_partition = -1;
-#pragma omp critical
-    if (pop_level0_queue(w, &next_partition))
+#pragma omp critical        //Task Generation. Get next part from q and set it to scheduled.
+    if (queue_pop(w->part_queue, &next_partition))
     {
-        //OMP
-        //Check next_partition in processing queue.
-        //Iterate over all external states grouped by partitions they belong to.
-        //Load their values from their respective partition arrays.
-        set_dirty_level0_scheduled(w, next_partition);
-        //set_processor_flag(w, threadID);
-        //If not present add it and return.
-        //If present, in processing queue, put it back to the end of part queue
-        //check next item on queue.
+        queue_add_bit(w->part_scheduled_bitq, next_partition);
     }
     return next_partition;
 }
@@ -697,7 +672,7 @@ int get_next_part(world_t *w, int threadID)
 int move_scheduled_part_to_processing(world_t *w, int l_part)
 {
     int scheduled_popped; int bit_added;
-#pragma omp critical
+#pragma omp critical        //On Task begin. Reset the scheduled bit and set processing bit.
     {
         scheduled_popped = bit_queue_pop(w->part_scheduled_bitq, l_part);
         bit_added = queue_add_bit(w->part_level0_processing_bit_queue, l_part);
@@ -715,15 +690,15 @@ void add_level0_partition_deps_for_eval(world_t *w, int l_part_changed, int add_
     index1 = 0;
     while ( med_hash_iterate( dep_part_hash, &index1, &l_start_part, &v ) )
     {
-        #pragma omp critical
+        #pragma omp critical        //Post Task. Add deps.
         {
-            if (check_dirty_level0_processing(w, l_start_part) )
+            if (check_bit_obj_present(w->part_level0_processing_bit_queue, l_start_part) )
             {
-                set_dirty_waiting_q(w, l_start_part);
+                queue_add_bit(w->part_level0_waiting_bitq, l_start_part);
             }
-            else if (!(check_bit_obj_present(w->part_scheduled_bitq, l_start_part)) &&
+            else if ( !(check_bit_obj_present(w->part_scheduled_bitq, l_start_part)) &&
                         !(check_bit_obj_present(w->part_level0_waiting_bitq, l_start_part)) )
-                add_partition_for_eval(w, l_start_part);
+                queue_add(w->part_queue, l_start_part);
         }
     }
     dep_part_hash = w->parts[ l_part_changed ].my_global_dependents;
@@ -738,10 +713,7 @@ void add_level0_partition_deps_for_eval(world_t *w, int l_part_changed, int add_
 int set_dirty(world_t *w, int l_part)
 {
     int added_bit;
-#pragma omp critical
-    {
     added_bit = queue_add_bit(w->part_level0_bit_queue, l_part);
-    }
     
     return added_bit;
 }
