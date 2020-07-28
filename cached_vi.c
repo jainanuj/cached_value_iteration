@@ -301,10 +301,46 @@ double value_iterate( world_t *w, double epsilon_partition_initial, double epsil
     return tmp;
 }
 
+void monitor(world_t *w, int loopCount, int partGenerated)
+{
+    int i;
+    unsigned long inActivQ, inWaitBit, inScheduledBit, inProcessingBit;
+    int tid = omp_get_thread_num();
+    printf("Monitoring info on thread=%d with LoopCount=%d. Current Part generated=%d.\n",tid, loopCount, partGenerated);
+    for (i = 0; i < w->num_global_parts; i++)
+    {
+        inActivQ = check_bit_obj_present(w->part_queue->bitqueue, i);
+        inScheduledBit = check_bit_obj_present(w->part_scheduled_bitq, i);
+        inWaitBit = check_bit_obj_present(w->part_level0_waiting_bitq, i);
+        inProcessingBit = check_bit_obj_present(w->part_level0_processing_bit_queue, i);
+	
+	inActivQ = (inActivQ>0) ? 1: 0;
+	inScheduledBit = (inScheduledBit>0) ? 1: 0;
+	inWaitBit = (inWaitBit>0) ? 1: 0;
+	inProcessingBit = (inProcessingBit>0) ? 1: 0;
+        if ((inActivQ + inScheduledBit + inWaitBit + inProcessingBit) > 1)
+        {
+            printf("This is bad. Part: %d in more than one q", i);
+            if (inActivQ > 0)
+                printf("Part %d in ActivQ & ", i);
+            if (inScheduledBit > 0)
+                printf("Part %d in SchedBit & ", i);
+            if (inWaitBit > 0)
+                printf("Part %d in WaitBit & ", i);
+            if (inProcessingBit > 0)
+                printf("Part %d in Processing ", i);
+            printf("\n");
+        }
+    }
+    printf("# of items in ActivQ=%d\n", w->part_queue->numitems);
+    printf("# of items in SchedMap=%d\n", w->part_scheduled_bitq->num_items);
+    printf("# of items in ProcessMap=%d\n", w->part_level0_processing_bit_queue->num_items);
+    printf("# of items in Wait=%d\n", w->part_scheduled_bitq->num_items);
+}
 
 double value_iterate_level1_partition( world_t *w, int level1_part )
 {
-    int i, l_part, next_level0_part, nthreads;
+    int i, l_part, next_level0_part, nthreads, loopCount;
     double  tmp, maxheat = 0; int tid;
     
     w->level1_parts[level1_part].convergence_factor = heat_epsilon_overall;
@@ -322,7 +358,7 @@ double value_iterate_level1_partition( world_t *w, int level1_part )
             clear_level0_dirty_flag(w, l_part);
         }
     }  //Parallelize using workshare construct. omp
-    w->processing_items = 0;
+    w->processing_items = 0; loopCount = 0;
     #pragma omp parallel default(shared) private(tmp, tid, next_level0_part)      //Solve for maxheat
     {
     #pragma omp single
@@ -335,16 +371,19 @@ double value_iterate_level1_partition( world_t *w, int level1_part )
         #pragma omp task untied
             while (part_available_to_process(w))// || processing_bit_queue_has_items(w) || scheduled_bit_queue_has_items(w))
             {
+	 	loopCount++;
                 next_level0_part = get_next_part(w, tid);       //Pops part from q and adds to scheduled bitmap.
                 tid = omp_get_thread_num();
-                printf("Generating on tid=%d, on part=%d\n",tid, next_level0_part);
+                //printf("Generating on tid=%d, on part=%d\n",tid, next_level0_part);
+		if (loopCount % 100 == 0)
+			monitor(w, loopCount, next_level0_part);
 
                 #pragma omp task firstprivate(next_level0_part) private(tmp) if (next_level0_part >= 0) priority(5)
                 {
                     if (next_level0_part >= 0)
                     {
                         tid = omp_get_thread_num();
-                        printf("On tid=%d, Processing part=%d\n",tid, next_level0_part);
+                        //printf("On tid=%d, Processing part=%d\n",tid, next_level0_part);
                         w->processing_items++; //processing_bit_queue_has_items( w);
                         move_scheduled_part_to_processing(w, next_level0_part);
                         tmp = value_iterate_partition(w, next_level0_part, tid);     //Sets a convergence factor if not set and performs VI with it.
