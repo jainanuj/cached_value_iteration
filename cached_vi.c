@@ -769,8 +769,10 @@ double value_update( world_t *w, int l_part, int l_state )
         return 0;
     
     cval = w->parts[ l_part ].values.elts[ l_state ];
+    
     min_action = 0;
     value = reward_or_value( w, l_part, l_state, 0 );
+    
     /* remember that there is an action bias! */
     nacts = w->parts[ l_part ].states[ l_state ].num_actions;
     for (action=1; action<nacts; action++)
@@ -781,20 +783,23 @@ double value_update( world_t *w, int l_part, int l_state )
             min_action = action;
         }
     }
-    if (value <= cval)                      //For minimization it is <
-    {
-        w->parts[l_part].states[l_state].bestAction = min_action;       //update best Action for this state.
-        w->parts[ l_part ].values.elts[ l_state ] = value;       //Update the V(s) for this state.
-        w->num_value_updates++;
+    w->parts[l_part].states[l_state].bestAction = min_action;       //update best Action for this state.
+    //Commenting Out - ANUJ - max_value can be -ve. This is when we have a cost to pay for the action.
+    //  if ( max_value < 0 ) {
+    //    fprintf( stderr, "WARGH!\n" );
+    //    exit( 0 );
+    //  }
+    w->parts[ l_part ].values.elts[ l_state ] = value;       //Update the V(s) for this state.
+    w->num_value_updates++;
+    if (value <= cval)
         return cval - value;
-//    else
-//    {
-//        return value - cval;
-//    }
+    else
+    {
+        return value - cval;
     }
-    w->num_value_updates_attempted++;
-    return 0;
+    
 }
+
 double reward_or_value( world_t *w, int l_part, int l_state, int a ) {
     double value, tmp;
     state_t *st;
@@ -851,7 +856,7 @@ double get_remainder( world_t *w, int l_part, int l_state, int action ) {
     int i, dep_cnt;
     trans_t *tt;
     entry_t *ext_et;
-    double val_hash2, tmp;
+    double val_hash2;
     
     val_hash2 = 0;
     tt = &( w->parts[ l_part ].states[ l_state ].tps[ action ] );
@@ -860,9 +865,7 @@ double get_remainder( world_t *w, int l_part, int l_state, int action ) {
     
     for ( i=0; i<dep_cnt; i++ )
     {
-//#pragma omp atomic read
-        tmp = ext_et[ i ].entry * (w->parts[l_part].states[l_state].external_state_vals[action][i]->d);
-        val_hash2 += tmp;
+        val_hash2 += ext_et[ i ].entry * (w->parts[l_part].states[l_state].external_state_vals[action][i]->d);
 #ifdef __TEST__
         if  (ext_et[ i ].col == -1)
         {
@@ -916,6 +919,7 @@ double value_update_iters( world_t *w, int l_part, int l_state )
     
     if (w->parts[l_part].states[l_state].goal == 1)
         return 0;
+    
     cval = w->parts[ l_part ].values.elts[ l_state ];
     
     min_action = 0;
@@ -934,23 +938,21 @@ double value_update_iters( world_t *w, int l_part, int l_state )
 //        fprintf( stderr, "WARGH!\n" );
 //        exit( 0 );
 //    }
-    if (value <= cval)          //For minimization <
-    {
-        w->parts[ l_part ].values.elts[ l_state ] = value;       //Update the V(s,a) for this state.
-        w->num_value_updates_iters++;
+    
+    w->parts[ l_part ].values.elts[ l_state ] = value;       //Update the V(s,a) for this state.
+    w->num_value_updates_iters++;
+    
+    if (value <= cval)
         return cval - value;
-//    else
-//    {
-//        return value - cval;
-//    }
+    else
+    {
+        return value - cval;
     }
-    w->num_value_update_iters_attempted++;
-    return 0;
 }
 
 double reward_or_value_iters( world_t *w, int l_part, int l_state, int a )
 {
-    double value, tmp;//, tmp;
+    double value;//, tmp;
     state_t *st;
     st = &( w->parts[ l_part ].states[ l_state ] );
     
@@ -959,10 +961,7 @@ double reward_or_value_iters( world_t *w, int l_part, int l_state, int a )
                              st->tps[ a ].int_deps,
                              &(w->parts[ l_part ].values) );
     /*#error This needs to grok the global vs. local state distinction.  Wow.  How could it possibly not do that??? */
-//#pragma omp atomic read
-    tmp = st->external_dep_vals[a];
-    
-    value += tmp;      //External deps
+    value += st->external_dep_vals[a];      //External deps
     
     /* we have to do this because we negated the A matrix! */
     //value = -value + st->tps[ a ].reward;
@@ -973,18 +972,15 @@ double reward_or_value_iters( world_t *w, int l_part, int l_state, int a )
 double entries_vec_mult( entry_t *et, int cnt, vec_t *b )
 {
     int j;
-    double tmpr, tmpbuf;
+    double tmpr;
     
     tmpr = 0;
     for ( j=0; j<cnt; j++ ) {
-        
-        tmpbuf = et[j].entry * b->elts[et[j].col];
-        tmpr += tmpbuf;
+        tmpr += et[j].entry * b->elts[et[j].col];
     }
     
     return tmpr;
 }
-
 
 double get_heat( world_t *w, int l_part, int l_state ) {
     int action, nacts;
