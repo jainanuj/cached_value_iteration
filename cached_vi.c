@@ -359,7 +359,8 @@ double value_iterate_level1_partition( world_t *w, int level1_part )
         }
     }  //Parallelize using workshare construct. omp
     w->processing_items = 0; loopCount = 0;
-    #pragma omp parallel default(shared) private(tmp, tid, next_level0_part)      //Solve for maxheat
+    printf("Going to get forked in parallel section.\n");
+    #pragma omp parallel default(shared) private(tmp, tid, next_level0_part) proc_bind(spread)     //Solve for maxheat
     {
     #pragma omp single
         {
@@ -375,10 +376,10 @@ double value_iterate_level1_partition( world_t *w, int level1_part )
                 next_level0_part = get_next_part(w, tid);       //Pops part from q and adds to scheduled bitmap.
                 tid = omp_get_thread_num();
                 //printf("Generating on tid=%d, on part=%d\n",tid, next_level0_part);
-		if (loopCount % 100 == 0)
-			monitor(w, loopCount, next_level0_part);
+		//if (loopCount % 100 == 0)
+		//	monitor(w, loopCount, next_level0_part);
 
-                #pragma omp task firstprivate(next_level0_part) private(tmp) if (next_level0_part >= 0) priority(5)
+                #pragma omp task firstprivate(next_level0_part) if (next_level0_part >= 0) private(tmp) priority(5)
                 {
                     if (next_level0_part >= 0)
                     {
@@ -489,7 +490,7 @@ double value_iterate_partition( world_t *w, int l_part, int threadID )
             numPartitionIters++;
             if (part_internal_heat > max_heat)
                 max_heat = part_internal_heat;
-            if (part_internal_heat < converge_this_thrd) //excluding (numPartitionIters > MAX_ITERS_PP) ||
+            if (part_internal_heat < w->parts[l_part].convergence_factor) //excluding (numPartitionIters > MAX_ITERS_PP) ||
             {
                 //if (numPartitionIters > 1)
                 //if (numPartitionIters >= 20)
