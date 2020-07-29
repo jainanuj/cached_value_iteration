@@ -288,6 +288,7 @@ double value_iterate( world_t *w, double epsilon_partition_initial, double epsil
         level1_part = get_next_level1_part(w);
         if (level1_part >= 0)
         {
+            printf("Going to call VI on l1=%d part",level1_part);
             tmp = value_iterate_level1_partition( w, level1_part );
             if (tmp > heat_epsilon_overall)
             {
@@ -465,7 +466,7 @@ double value_iterate_partition( world_t *w, int l_part, int threadID )
     w->val_update_time += (float)(clock() - update_start_time)/CLOCKS_PER_SEC;
     
     update_start_time = clock();
-    #pragma omp flush(w->parts[ l_part ].washes)
+    #pragma omp flush
     if (max_heat > w->parts[l_part].convergence_factor)
     {
         //This is equivalent to while(true) as we don't change max_heat in the while loop.
@@ -525,7 +526,7 @@ double value_iterate_partition( world_t *w, int l_part, int threadID )
                 add_level0_partition_deps_for_eval(w, l_part, 0);     //This is just a deferred add. only setting the dirty bit not adding to queue.
     }
     w->parts[l_part].washes++;
-#pragma omp flush(w->parts[ l_part ].washes)
+#pragma omp flush
 
     return max_heat;
 }
@@ -793,9 +794,9 @@ double value_update( world_t *w, int l_part, int l_state )
     //    exit( 0 );
     //  }
     w->parts[ l_part ].values.elts[ l_state ] = value;       //Update the V(s) for this state.
-#pragma omp flush(w->num_value_updates)
+#pragma omp flush
     w->num_value_updates++;
-#pragma omp flush(w->num_value_updates)
+#pragma omp flush
     if (value <= cval)
         return cval - value;
     else
@@ -945,9 +946,9 @@ double value_update_iters( world_t *w, int l_part, int l_state )
 //    }
     
     w->parts[ l_part ].values.elts[ l_state ] = value;       //Update the V(s,a) for this state.
-#pragma omp flush(w->num_value_updates_iters)
+#pragma omp flush
     w->num_value_updates_iters++;
-    #pragma omp flush(w->num_value_updates_iters)
+    #pragma omp flush
 
     
     if (value <= cval)
