@@ -350,7 +350,6 @@ double value_iterate_level1_partition( world_t *w, int level1_part )
     clear_level0_wait_bit_q(w);
     clear_scheduled_bit_q(w);
     //clear_processor_busy_queue(w);
-    printf("# of parts in the l1=%d part =%d subparts\n",level1_part, w->level1_parts[level1_part].num_sub_parts);
     for (i=0; i< w->level1_parts[level1_part].num_sub_parts; i++ )
     {
         l_part = w->level1_parts[level1_part].sub_parts[i];
@@ -361,6 +360,9 @@ double value_iterate_level1_partition( world_t *w, int level1_part )
         }
     }  //Parallelize using workshare construct. omp
     w->processing_items = 0; loopCount = 0;
+    printf("# of parts in the l1=%d part =%d subparts. ActiveQ=%d\n",level1_part, w->level1_parts[level1_part].num_sub_parts,w->part_queue->numitems);
+    if (w->part_queue->numitems == 0)
+	    return 0.0;
     printf("Going to get forked in parallel section.\n");
     #pragma omp parallel default(shared) private(tmp, tid, next_level0_part) proc_bind(spread)     //Solve for maxheat
     {

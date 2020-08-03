@@ -12,7 +12,7 @@
 #include "intqueue.h"
 #include "intheap.h"
 
-#define PART_SIZE  500//5000//6100       //3
+#define PART_SIZE  5000//5000//6100       //3
 #define ARR_SIZE  1000000
 #define NUM_PARTS_IN_LEVEL1 10000
 
