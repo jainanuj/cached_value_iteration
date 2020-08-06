@@ -25,6 +25,7 @@ double value_iterate( world_t *w, double epsilon_partition, double epsilon_overa
 double value_iterate_level1_partition( world_t *w, int level1_part );
 double value_iterate_partition( world_t *w, int l_part, int threadID );
 void monitor(world_t *w, int loopCount, int partGenerated);
+void monitor_numbers(world_t *w);
 
 int level1_part_available_to_process(world_t *w);
 int get_next_level1_part(world_t *w);

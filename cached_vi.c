@@ -299,6 +299,7 @@ double value_iterate( world_t *w, double epsilon_partition_initial, double epsil
             }
         }       //If there was actually a level1 part to process.
     }
+    monitor_numbers(w);
     return tmp;
 }
 
@@ -339,9 +340,18 @@ void monitor(world_t *w, int loopCount, int partGenerated)
     printf("# of items in Wait=%d\n", w->part_scheduled_bitq->num_items);
 }
 
+void monitor_numbers(world_t *w)
+{
+    printf("In monitor numbers while exiting\n");
+    printf("# of items in ActivQ=%d\n", w->part_queue->numitems);
+    printf("# of items in SchedMap=%d\n", w->part_scheduled_bitq->num_items);
+    printf("# of items in ProcessMap=%d\n", w->part_level0_processing_bit_queue->num_items);
+    printf("# of items in Wait=%d\n", w->part_scheduled_bitq->num_items);
+}
+
 double value_iterate_level1_partition( world_t *w, int level1_part )
 {
-    int i, l_part, next_level0_part, nthreads, loopCount;
+    int i, l_part, next_level0_part, nthreads, loopCount=0;
     double  tmp, maxheat = 0; int tid;
     
     w->level1_parts[level1_part].convergence_factor = heat_epsilon_overall;
@@ -372,9 +382,8 @@ double value_iterate_level1_partition( world_t *w, int level1_part )
             tid = omp_get_thread_num();
             nthreads = omp_get_num_threads();
             printf("Number of threads:%d------\n",nthreads);
-        
-        #pragma omp task untied
-            while (part_available_to_process(w))// || processing_bit_queue_has_items(w) || scheduled_bit_queue_has_items(w))
+       
+            while (part_available_to_process(w) || processing_bit_queue_has_items(w) || scheduled_bit_queue_has_items(w))
             {
 	 	loopCount++;
                 next_level0_part = get_next_part(w, tid);       //Pops part from q and adds to scheduled bitmap.
@@ -407,11 +416,13 @@ double value_iterate_level1_partition( world_t *w, int level1_part )
                         }
                         w->processing_items--; //processing_bit_queue_has_items( w);
                     }
-                    #pragma omp flush
                 }
+		#pragma omp flush
             }
         }
     }  //All threads join after this.
+    monitor_numbers(w);
+    printf("LoopCount is: %d\n",loopCount);
     return maxheat;
 }
 
@@ -510,7 +521,7 @@ double value_iterate_partition( world_t *w, int l_part, int threadID )
     }
     w->val_update_iters_time += (float)(clock() - update_start_time)/CLOCKS_PER_SEC;
 
-#pragma omp critical        // on Task complete. Reset processing flag. Move part from waiting to eval.        TBD - minimize Criticals.
+#pragma omp critical        //REAL Task complete. Reset processing flag. Move part from waiting to eval.        TBD - minimize Criticals.
     {
         bit_queue_pop(w->part_level0_processing_bit_queue, l_part);
         if (check_bit_obj_present(w->part_level0_waiting_bitq, l_part))
@@ -707,7 +718,7 @@ int clear_level0_dirty_flag(world_t *w, int l_part)
 int get_next_part(world_t *w, int threadID)
 {
     int next_partition = -1;
-#pragma omp critical        //Task Generation. Get next part from q and set it to scheduled.
+#pragma omp critical        //REAL Task Generation. Get next part from q and set it to scheduled.
     if (queue_pop(w->part_queue, &next_partition))
     {
         queue_add_bit(w->part_scheduled_bitq, next_partition);
@@ -718,7 +729,7 @@ int get_next_part(world_t *w, int threadID)
 int move_scheduled_part_to_processing(world_t *w, int l_part)
 {
     int scheduled_popped; int bit_added;
-#pragma omp critical        //On Task begin. Reset the scheduled bit and set processing bit.
+#pragma omp critical        //REAL On Task begin. Reset the scheduled bit and set processing bit.
     {
         scheduled_popped = bit_queue_pop(w->part_scheduled_bitq, l_part);
         bit_added = queue_add_bit(w->part_level0_processing_bit_queue, l_part);
@@ -736,7 +747,7 @@ void add_level0_partition_deps_for_eval(world_t *w, int l_part_changed, int add_
     index1 = 0;
     while ( med_hash_iterate( dep_part_hash, &index1, &l_start_part, &v ) )
     {
-        #pragma omp critical        //Post Task. Add deps.
+        #pragma omp critical        //REAL Post Task. Add deps.
         {
             if (check_bit_obj_present(w->part_level0_processing_bit_queue, l_start_part) )
             {
