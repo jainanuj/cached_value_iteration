@@ -529,7 +529,8 @@ double value_iterate_partition( world_t *w, int l_part, int threadID )
         if (check_bit_obj_present(w->part_level0_waiting_bitq, l_part))
         {
             bit_queue_pop(w->part_level0_waiting_bitq, l_part);
-            queue_add(w->part_queue, l_part);
+	    if (max_heat > heat_epsilon_overall)
+               queue_add(w->part_queue, l_part);
         }
     }
 
