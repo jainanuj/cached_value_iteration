@@ -152,6 +152,7 @@ int queue_pop(queue *q, int *result )
     }
     
     *result = q->items[q->start_item_ptr];
+    q->items[q->start_item_ptr] = -1;
     q->numitems--;
     q->start_item_ptr = ((q->start_item_ptr + 1 ) % q->maxitems);
 

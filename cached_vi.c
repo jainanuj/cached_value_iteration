@@ -385,7 +385,9 @@ double value_iterate_level1_partition( world_t *w, int level1_part )
        
             while (part_available_to_process(w) || processing_bit_queue_has_items(w) || scheduled_bit_queue_has_items(w))
             {
-	 	loopCount++;
+                loopCount++;
+                //Flush each proc's buffer.
+                //Fetch parts from each proc's buffer and fill in the main queue.
                 next_level0_part = get_next_part(w, tid);       //Pops part from q and adds to scheduled bitmap.
                 tid = omp_get_thread_num();
                 //printf("Generating on tid=%d, on part=%d\n",tid, next_level0_part);
