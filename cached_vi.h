@@ -35,6 +35,7 @@ int clear_level0_processing_bit_queue(world_t *w);
 int clear_level0_wait_bit_q(world_t *w);
 int clear_processor_busy_queue(world_t *w);
 int clear_scheduled_bit_q(world_t *w);
+void copy_bit_queue(bit_queue *dest_bq, bit_queue *src_bitq);
 int move_scheduled_part_to_processing(world_t *w, int l_part);
 
 unsigned long check_dirty(world_t *w, int l_part);
@@ -47,7 +48,7 @@ int clear_level0_dirty_flag(world_t *w, int l_part);
 int clear_level0_processing_flag(world_t *w, int l_part);
 int clear_waiting_dirty_flag(world_t *w, int l_part);
 int clear_processor_busy_flag(world_t *w, int threadID);
-
+void process_in_works_queue(world_t *w);
 
 int find_new_leader(world_t *w);
 void test_and_set_leader(world_t *w, int threadID);

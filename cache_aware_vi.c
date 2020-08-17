@@ -286,7 +286,9 @@ world_t *init_world(struct StateListNode *list, int component_size, int round)
     
     //Number of parts in each level1 part. //Two params are number of items and the max value of the item.
     w->part_queue = queue_create(NUM_PARTS_IN_LEVEL1 + 1, w->num_global_parts);
-    if ( w->part_queue == NULL ) {
+    w->in_works_queue = queue_create(NUM_PARTS_IN_LEVEL1 + 1, w->num_global_parts);
+    w->bk_waiting_q = queue_create(NUM_PARTS_IN_LEVEL1 + 1, w->num_global_parts);
+    if ( (w->part_queue == NULL) || (w->in_works_queue == NULL) ) {
         wlog( 1, "Error creating queue!\n" );
         exit( 0 );
     }
@@ -309,6 +311,9 @@ world_t *init_world(struct StateListNode *list, int component_size, int round)
     w->part_level0_processing_bit_queue = create_bit_queue(w->num_global_parts);
     w->part_level0_waiting_bitq = create_bit_queue(w->num_global_parts);
     w->part_scheduled_bitq = create_bit_queue(w->num_global_parts);
+    w->bk_processing_bq = create_bit_queue(w->num_global_parts);
+    w->bk_scheduled_bq = create_bit_queue(w->num_global_parts);
+    w->in_works_bq = create_bit_queue(w->num_global_parts);
     if ( w->part_level0_bit_queue == NULL || w->part_level0_processing_bit_queue == NULL || w->part_level0_waiting_bitq == NULL || w->part_scheduled_bitq == NULL) {
         wlog( 1, "Error creating bit queue!\n" );
         exit( 0 );

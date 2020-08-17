@@ -359,6 +359,12 @@ double value_iterate_level1_partition( world_t *w, int level1_part )
     clear_level0_processing_bit_queue(w);
     clear_level0_wait_bit_q(w);
     clear_scheduled_bit_q(w);
+    empty_queue(w->in_works_queue);
+    empty_queue(w->bk_waiting_q);
+    empty_bit_queue(w->bk_scheduled_bq);
+    empty_bit_queue(w->bk_processing_bq);
+    empty_bit_queue(w->part_level0_waiting_bitq);
+    empty_bit_queue(w->in_works_bq);
     //clear_processor_busy_queue(w);
     for (i=0; i< w->level1_parts[level1_part].num_sub_parts; i++ )
     {
@@ -382,17 +388,23 @@ double value_iterate_level1_partition( world_t *w, int level1_part )
             tid = omp_get_thread_num();
             nthreads = omp_get_num_threads();
             printf("Number of threads:%d------\n",nthreads);
+            loopCount = 0;
        
-            while (part_available_to_process(w) || processing_bit_queue_has_items(w) || scheduled_bit_queue_has_items(w))
+            while (part_available_to_process(w) || queue_has_items(w->in_works_queue))
             {
                 loopCount++;
-                //Flush each proc's buffer.
-                //Fetch parts from each proc's buffer and fill in the main queue.
                 next_level0_part = get_next_part(w, tid);       //Pops part from q and adds to scheduled bitmap.
-                tid = omp_get_thread_num();
+                if (next_level0_part >= 0)
+                {
+                    queue_add(w->in_works_queue, next_level0_part);
+                    queue_add_bit(w->in_works_bq, next_level0_part);
+                }
+                if ( ((loopCount % 10) == 0) || !(queue_has_items(w->part_queue)) )
+                    process_in_works_queue(w);
+                //tid = omp_get_thread_num();
                 //printf("Generating on tid=%d, on part=%d\n",tid, next_level0_part);
-		//if (loopCount % 100 == 0)
-		//	monitor(w, loopCount, next_level0_part);
+                //if (loopCount % 100 == 0)
+                    //	monitor(w, loopCount, next_level0_part);
 
                 #pragma omp task firstprivate(next_level0_part) if (next_level0_part >= 0) private(tmp) priority(5)
                 {
@@ -418,6 +430,7 @@ double value_iterate_level1_partition( world_t *w, int level1_part )
                         }
                         w->processing_items--; //processing_bit_queue_has_items( w);
                     }
+                    #pragma omp flush
                 }
 		#pragma omp flush
             }
@@ -426,6 +439,60 @@ double value_iterate_level1_partition( world_t *w, int level1_part )
     monitor_numbers(w);
     printf("LoopCount is: %d\n",loopCount);
     return maxheat;
+}
+
+void process_in_works_queue(world_t *w)
+{
+    int numThreads = omp_get_num_threads();
+    int processed = 0;
+    int l_part;
+    int initialItems = 0;
+#pragma omp critical
+    {
+        copy_bit_queue(w->bk_processing_bq, w->part_level0_processing_bit_queue);
+        copy_bit_queue(w->bk_scheduled_bq, w->part_scheduled_bitq);
+    }
+    initialItems = w->in_works_queue->numitems;
+    while (queue_has_items(w->in_works_queue) )
+    {
+        queue_pop(w->in_works_queue, &l_part);
+        processed++;
+        if (check_bit_obj_present(w->in_works_bq, l_part))      //If it was already removed from the bq, no need to process it.
+        {
+            if (check_bit_obj_present(w->bk_scheduled_bq, l_part) || check_bit_obj_present(w->bk_processing_bq, l_part) )
+            {
+                queue_add(w->in_works_queue, l_part);       //Add it back as it is still in works.
+            }
+            else        //It has been processed.
+            {
+                bit_queue_pop(w->in_works_bq, l_part);      //Popped as not in works anymore.
+                if (!check_bit_obj_present(w->part_level0_waiting_bitq, l_part))    //If not in waiting add deps. (Otherwise it will be processed again, so no need add deps yet)
+                    add_level0_partition_deps_for_eval(w, l_part, 1);
+            }
+        }  //if works_bq was not present, item already taken care of, so do nothing just pop & move to next.
+        if ((processed > numThreads) || (processed >= initialItems) )
+            break;
+    }
+    processed = 0;
+    initialItems = w->bk_waiting_q->numitems;
+    while (queue_has_items(w->bk_waiting_q) )
+    {
+        queue_pop(w->bk_waiting_q, &l_part);
+        processed++;
+        if (check_bit_obj_present(w->part_level0_waiting_bitq, l_part))     //If it was already removed from the bq, no need to process it.
+        {
+            if (!check_bit_obj_present(w->bk_processing_bq, l_part))
+            {
+                bit_queue_pop(w->part_level0_waiting_bitq, l_part);     //Pop as it is not waiting anymroe.
+                if (!check_bit_obj_present(w->bk_scheduled_bq, l_part)) //Add it if it was not already scheduled.
+                    queue_add(w->part_queue, l_part);
+            }
+            else
+                queue_add(w->bk_waiting_q, l_part);     //Add part back to waiting as it is still in processing.
+        }       //if waitbitq was not present, item already taken care of, so do nothing just pop & move to next.
+        if ((processed > numThreads) || (processed >= initialItems) )
+            break;
+    }
 }
 
 double value_iterate_partition( world_t *w, int l_part, int threadID )
@@ -526,22 +593,8 @@ double value_iterate_partition( world_t *w, int l_part, int threadID )
 #pragma omp critical        //REAL Task complete. Reset processing flag. Move part from waiting to eval.        TBD - minimize Criticals.
     {
         bit_queue_pop(w->part_level0_processing_bit_queue, l_part);
-        if (check_bit_obj_present(w->part_level0_waiting_bitq, l_part))
-        {
-            bit_queue_pop(w->part_level0_waiting_bitq, l_part);
-	    if (max_heat > heat_epsilon_overall)
-               queue_add(w->part_queue, l_part);
-        }
     }
 
-    if (max_heat > heat_epsilon_overall)
-    {
-            //Add local deps to queue. Mark global as dirty.
-            if (max_heat > w->parts[l_part].convergence_factor)
-                add_level0_partition_deps_for_eval(w, l_part, 1);     //Add the dependents immediately to queue.
-            else
-                add_level0_partition_deps_for_eval(w, l_part, 0);     //This is just a deferred add. only setting the dirty bit not adding to queue.
-    }
     w->parts[l_part].washes++;
 #pragma omp flush
 
@@ -668,6 +721,13 @@ int clear_waiting_dirty_flag(world_t *w, int l_part)
     return waiting_bit_popped;
 }
 
+void copy_bit_queue(bit_queue *dest_bq, bit_queue *src_bitq)
+{
+    dest_bq->num_items = src_bitq->num_items;
+    dest_bq->max_bit_arrays = src_bitq->max_bit_arrays;
+    memcpy(dest_bq->bit_arrays, src_bitq->bit_arrays, sizeof(unsigned long) * (src_bitq->max_bit_arrays));
+}
+
 
 int part_available_to_process(world_t *w)
 {
@@ -678,13 +738,11 @@ int part_available_to_process(world_t *w)
 }
 void add_partition_for_eval(world_t *w, int l_part)
 {
-//#pragma omp critical        //This fn is never called in parallel. Add to active q. Absolutely requires critical so two threads don't add to same position in the queue.
-        queue_add(w->part_queue, l_part);
+    queue_add(w->part_queue, l_part);
 }
 int pop_level0_queue(world_t *w, int* next_part)
 {
     int popped = 0;
-//#pragma omp critical       //Pop from Active q. Never called in parallel.
     popped = queue_pop(w->part_queue, next_part);
     return popped;
 }
@@ -721,10 +779,10 @@ int clear_level0_dirty_flag(world_t *w, int l_part)
 int get_next_part(world_t *w, int threadID)
 {
     int next_partition = -1;
-#pragma omp critical        //REAL Task Generation. Get next part from q and set it to scheduled.
     if (queue_pop(w->part_queue, &next_partition))
     {
-        queue_add_bit(w->part_scheduled_bitq, next_partition);
+        #pragma omp critical        //REAL Task Generation. Get next part from q and set it to scheduled.
+            queue_add_bit(w->part_scheduled_bitq, next_partition);
     }
     return next_partition;
 }
@@ -750,15 +808,16 @@ void add_level0_partition_deps_for_eval(world_t *w, int l_part_changed, int add_
     index1 = 0;
     while ( med_hash_iterate( dep_part_hash, &index1, &l_start_part, &v ) )
     {
-        #pragma omp critical        //REAL Post Task. Add deps.
+        if (check_bit_obj_present(w->bk_processing_bq, l_start_part) )
         {
-            if (check_bit_obj_present(w->part_level0_processing_bit_queue, l_start_part) )
-            {
-                queue_add_bit(w->part_level0_waiting_bitq, l_start_part);
-            }
-            else if ( !(check_bit_obj_present(w->part_scheduled_bitq, l_start_part)) &&
-                        !(check_bit_obj_present(w->part_level0_waiting_bitq, l_start_part)) )
-                queue_add(w->part_queue, l_start_part);
+            queue_add(w->bk_waiting_q, l_start_part);
+            queue_add_bit(w->part_level0_waiting_bitq, l_start_part);
+        }
+        else if ( !(check_bit_obj_present(w->bk_scheduled_bq, l_start_part)) )
+        {
+            queue_add(w->part_queue, l_start_part);
+            bit_queue_pop(w->part_level0_waiting_bitq, l_start_part);
+            bit_queue_pop(w->in_works_bq, l_start_part);
         }
     }
     dep_part_hash = w->parts[ l_part_changed ].my_global_dependents;
