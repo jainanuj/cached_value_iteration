@@ -123,6 +123,8 @@ typedef struct world_t {
     bit_queue *bk_processing_bq;
     bit_queue *bk_scheduled_bq;
     bit_queue *in_works_bq;
+    bit_queue *add_deps_indicator_bq;
+    bit_queue *bk_add_deps_indicator_bq;
     
 //    bit_queue *terminal_bit_queue;
 //    bit_queue *dead_bit_queue;

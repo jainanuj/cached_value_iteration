@@ -314,6 +314,8 @@ world_t *init_world(struct StateListNode *list, int component_size, int round)
     w->bk_processing_bq = create_bit_queue(w->num_global_parts);
     w->bk_scheduled_bq = create_bit_queue(w->num_global_parts);
     w->in_works_bq = create_bit_queue(w->num_global_parts);
+    w->add_deps_indicator_bq = create_bit_queue(w->num_global_parts);
+    w->bk_add_deps_indicator_bq = create_bit_queue(w->num_global_parts);
     if ( w->part_level0_bit_queue == NULL || w->part_level0_processing_bit_queue == NULL || w->part_level0_waiting_bitq == NULL || w->part_scheduled_bitq == NULL) {
         wlog( 1, "Error creating bit queue!\n" );
         exit( 0 );
