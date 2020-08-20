@@ -464,7 +464,7 @@ void process_in_works_queue(world_t *w)
             {
                 queue_add(w->in_works_queue, l_part);       //Add it back as it is still in works.
             }
-            else        //It has been processed.
+            else        //It has been processed as both scheduled and processing bit are clear.
             {
                 bit_queue_pop(w->in_works_bq, l_part);      //Popped as not in works anymore.
                 if (!check_bit_obj_present(w->part_level0_waiting_bitq, l_part) &&
@@ -788,7 +788,6 @@ int get_next_part(world_t *w, int threadID)
         #pragma omp critical        //REAL Task Generation. Get next part from q and set it to scheduled.
         {
             queue_add_bit(w->part_scheduled_bitq, next_partition);
-            bit_queue_pop(w->add_deps_indicator_bq, next_partition);      //reset the add_deps bit
         }
 
     }
@@ -802,6 +801,7 @@ int move_scheduled_part_to_processing(world_t *w, int l_part)
     {
         scheduled_popped = bit_queue_pop(w->part_scheduled_bitq, l_part);
         bit_added = queue_add_bit(w->part_level0_processing_bit_queue, l_part);
+        bit_queue_pop(w->add_deps_indicator_bq, l_part);      //reset the add_deps bit. It will need to be set by this thread later if there are changes to the part.
     }
 }
 
