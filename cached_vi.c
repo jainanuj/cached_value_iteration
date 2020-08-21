@@ -351,7 +351,7 @@ void monitor_numbers(world_t *w)
 
 double value_iterate_level1_partition( world_t *w, int level1_part )
 {
-    int i, l_part, next_level0_part, nthreads, loopCount=0;
+    int i, l_part, next_level0_part, nthreads, loopCount=0, lastProcessCount=0;
     double  tmp, maxheat = 0; int tid;
     
     w->level1_parts[level1_part].convergence_factor = heat_epsilon_overall;
@@ -400,8 +400,16 @@ double value_iterate_level1_partition( world_t *w, int level1_part )
                     queue_add(w->in_works_queue, next_level0_part);
                     queue_add_bit(w->in_works_bq, next_level0_part);
                 }
-                if ( ((loopCount % 10) == 0) || !(queue_has_items(w->part_queue)) )
-                    process_in_works_queue(w);      //This may add more items to the Active Q.
+                if //( ((loopCount % 10) == 0) || !(queue_has_items(w->part_queue)) )
+                    ( w->in_works_queue->numitems > w->part_queue->numitems)
+                {
+                    lastProcessCount++;
+                    if ( (lastProcessCount >= 10) || !(queue_has_items(w->part_queue)) )
+                    {
+                        lastProcessCount = 0;
+                        process_in_works_queue(w);      //This may add more items to the Active Q.
+                    }
+                }
                 //tid = omp_get_thread_num();
                 //printf("Generating on tid=%d, on part=%d\n",tid, next_level0_part);
                 //if (loopCount % 100 == 0)
