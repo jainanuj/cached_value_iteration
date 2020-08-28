@@ -141,6 +141,7 @@ typedef struct world_t {
     
     double val_update_time;
     double val_update_iters_time;
+    double inProcessQTimeSpent;
     
     /* this is the number of partitions that we've processed. */
     int parts_processed;

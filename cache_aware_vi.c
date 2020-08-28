@@ -9,7 +9,7 @@
 #include "cache_aware_vi.h"
 #include <time.h>
 #include <sys/time.h>
-#include <omp.h>
+//#include <omp.h>
 
 
 double heat_epsilon_final = heat_epsilon_final_def;
@@ -71,6 +71,8 @@ double cache_aware_vi(struct StateListNode *list, int MaxIter, int round, int co
  */
     w->num_value_updates = 0; w->num_value_updates_iters = 0; w->new_partition_wash = 0;
     w->val_update_time = 0; w->val_update_iters_time = 0; w->num_value_updates_attempted =0; w->num_value_update_iters_attempted = 0;
+    w->inProcessQTimeSpent = 0;
+    
     
     epsilon_partition_initial = 10; //10; //heat_epsilon_initial;
     epsilon_overall = heat_epsilon_final;
@@ -118,12 +120,18 @@ double cache_aware_vi(struct StateListNode *list, int MaxIter, int round, int co
 
     printf("Actual Value_iterate function in: %f secs. As per day: %f secs\n", time, timeDay);
     printf("Update time taken = %f; Update iters time taken = %f secs\n", w->val_update_time, w->val_update_iters_time);
-
+    wlog(1, "Total in Process time = %f\n",w->inProcessQTimeSpent);
 /*    init_level1_part_queue(w);
     init_level0_bit_queue(w);
     retVal = value_iterate(w, epsilon_partition, epsilon_overall);
 */
 //    solve_using_prioritized_vi( w, epsilon_partition, epsilon_overall );
+    w->new_partition_wash = 0;
+    for (int i = 0; i < w->num_global_parts; i++)
+    {
+        w->new_partition_wash += w->parts[i].washes;
+    }
+        
     wlog(1, "Number of Backups for round-%d with ep_part=%6f, ep_overall=%6f:\t%lu\n", round, epsilon_partition_initial, epsilon_overall, w->num_value_updates + w->num_value_updates_iters);
     wlog(1, "Number of new partition washes=%lu, number of updates =%lu, number of update_iters=%lu, num attempt_updates=%lu, numattempted update_iters=%lu\n", w->new_partition_wash, w->num_value_updates, w->num_value_updates_iters, w->num_value_updates_attempted, w->num_value_update_iters_attempted);
     

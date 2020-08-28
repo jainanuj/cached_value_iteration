@@ -353,6 +353,7 @@ double value_iterate_level1_partition( world_t *w, int level1_part )
 {
     int i, l_part, next_level0_part, nthreads, loopCount=0, lastProcessCount=0;
     double  tmp, maxheat = 0; int tid;
+    clock_t inProcessQStartTime;
     
     w->level1_parts[level1_part].convergence_factor = heat_epsilon_overall;
     clear_level0_queue(w);      //Only master thread does this. omp
@@ -390,7 +391,7 @@ double value_iterate_level1_partition( world_t *w, int level1_part )
             nthreads = omp_get_num_threads();
             printf("Number of threads:%d------\n",nthreads);
             loopCount = 0;
-       
+            
             while (part_available_to_process(w) || queue_has_items(w->in_works_queue))
             {
                 loopCount++;
@@ -407,7 +408,9 @@ double value_iterate_level1_partition( world_t *w, int level1_part )
                     if ( (lastProcessCount >= 10) || !(queue_has_items(w->part_queue)) )
                     {
                         lastProcessCount = 0;
+                        inProcessQStartTime = clock();
                         process_in_works_queue(w);      //This may add more items to the Active Q.
+                        w->inProcessQTimeSpent += (double)(clock() - inProcessQStartTime)/CLOCKS_PER_SEC;
                     }
                 }
                 //tid = omp_get_thread_num();
@@ -420,6 +423,7 @@ double value_iterate_level1_partition( world_t *w, int level1_part )
                     if (next_level0_part >= 0)
                     {
                         tid = omp_get_thread_num();
+                        
                         //printf("On tid=%d, Processing part=%d\n",tid, next_level0_part);
                         w->processing_items++; //processing_bit_queue_has_items( w);
                         move_scheduled_part_to_processing(w, next_level0_part);
@@ -581,6 +585,7 @@ double value_iterate_partition( world_t *w, int l_part, int threadID )
                 }
                 part_internal_heat = fabs( delta ) > part_internal_heat ? fabs( delta ): part_internal_heat;
             }
+        #pragma omp critical
             w->parts[ l_part ].washes++;
             numPartitionIters++;
             if (part_internal_heat > max_heat)
@@ -886,9 +891,10 @@ double value_update( world_t *w, int l_part, int l_state )
     //    exit( 0 );
     //  }
     w->parts[ l_part ].values.elts[ l_state ] = value;       //Update the V(s) for this state.
-#pragma omp flush
+
+#pragma omp critical
     w->num_value_updates++;
-#pragma omp flush
+
     if (value <= cval)
         return cval - value;
     else
@@ -1038,9 +1044,8 @@ double value_update_iters( world_t *w, int l_part, int l_state )
 //    }
     
     w->parts[ l_part ].values.elts[ l_state ] = value;       //Update the V(s,a) for this state.
-#pragma omp flush
+#pragma omp critical
     w->num_value_updates_iters++;
-    #pragma omp flush
 
     
     if (value <= cval)
