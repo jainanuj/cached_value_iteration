@@ -15,6 +15,7 @@
 #define PART_SIZE  5000//5000//6100       //3
 #define ARR_SIZE  1000000
 #define NUM_PARTS_IN_LEVEL1 10000
+#define NUM_PROCS 40
 
 
 typedef struct vec_t {
@@ -142,6 +143,7 @@ typedef struct world_t {
     double val_update_time;
     double val_update_iters_time;
     double inProcessQTimeSpent;
+    int processor_counter[NUM_PROCS];
     
     /* this is the number of partitions that we've processed. */
     int parts_processed;

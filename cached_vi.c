@@ -278,10 +278,12 @@ void update_part_heat( world_t *w, int l_part_num, double heat_left)
 
 double value_iterate( world_t *w, double epsilon_partition_initial, double epsilon_overall )
 {
-    int   level1_part;
+    int   level1_part, i;
     double tmp =0; //maxheat
     heat_epsilon_partition_initial = epsilon_partition_initial;
     heat_epsilon_overall = epsilon_overall;
+    for (i = 0; i < NUM_PROCS; i++)
+        w->processor_counter[i] = 0;
     //maxheat = 0;
     while (level1_part_available_to_process(w))
     {
@@ -300,6 +302,8 @@ double value_iterate( world_t *w, double epsilon_partition_initial, double epsil
         }       //If there was actually a level1 part to process.
     }
     monitor_numbers(w);
+    for (i = 0; i < 20; i++)
+        wlog(1, "Processor %d got %d parts\n",i,w->processor_counter[i]);
     return tmp;
 }
 
@@ -423,6 +427,7 @@ double value_iterate_level1_partition( world_t *w, int level1_part )
                     if (next_level0_part >= 0)
                     {
                         tid = omp_get_thread_num();
+                        w->processor_counter[tid]++;
                         
                         //printf("On tid=%d, Processing part=%d\n",tid, next_level0_part);
                         w->processing_items++; //processing_bit_queue_has_items( w);
@@ -892,7 +897,6 @@ double value_update( world_t *w, int l_part, int l_state )
     //  }
     w->parts[ l_part ].values.elts[ l_state ] = value;       //Update the V(s) for this state.
 
-#pragma omp critical
     w->num_value_updates++;
 
     if (value <= cval)
@@ -1044,7 +1048,6 @@ double value_update_iters( world_t *w, int l_part, int l_state )
 //    }
     
     w->parts[ l_part ].values.elts[ l_state ] = value;       //Update the V(s,a) for this state.
-#pragma omp critical
     w->num_value_updates_iters++;
 
     
