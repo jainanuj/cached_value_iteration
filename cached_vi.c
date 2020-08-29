@@ -355,7 +355,7 @@ void monitor_numbers(world_t *w)
 
 double value_iterate_level1_partition( world_t *w, int level1_part )
 {
-    int i, l_part, next_level0_part, nthreads, loopCount=0, lastProcessCount=0;
+    int i, tk, l_part, next_level0_part_1, next_level0_part_2, next_level0_part, nthreads, loopCount=0, lastProcessCount=0;
     double  tmp, maxheat = 0; int tid;
     clock_t inProcessQStartTime;
     
@@ -399,11 +399,18 @@ double value_iterate_level1_partition( world_t *w, int level1_part )
             while (part_available_to_process(w) || queue_has_items(w->in_works_queue))
             {
                 loopCount++;
-                next_level0_part = get_next_part(w, tid);       //Pops part from q and adds to scheduled bitmap.
-                if (next_level0_part >= 0)
+                next_level0_part_1 = get_next_part(w, tid);       //Pops part from q and adds to scheduled bitmap.
+                next_level0_part_2 = get_next_part(w, tid);       //Pops part from q and adds to scheduled bitmap.
+
+                if (next_level0_part_1 >= 0)
                 {
-                    queue_add(w->in_works_queue, next_level0_part);
-                    queue_add_bit(w->in_works_bq, next_level0_part);
+                    queue_add(w->in_works_queue, next_level0_part_1);
+                    queue_add_bit(w->in_works_bq, next_level0_part_1);
+                }
+                if (next_level0_part_2 >= 0)
+                {
+                    queue_add(w->in_works_queue, next_level0_part_2);
+                    queue_add_bit(w->in_works_bq, next_level0_part_2);
                 }
                 if //( ((loopCount % 10) == 0) || !(queue_has_items(w->part_queue)) )
                     ( w->in_works_queue->numitems > w->part_queue->numitems)
@@ -422,33 +429,41 @@ double value_iterate_level1_partition( world_t *w, int level1_part )
                 //if (loopCount % 100 == 0)
                     //	monitor(w, loopCount, next_level0_part);
 
-                #pragma omp task firstprivate(next_level0_part) if (next_level0_part >= 0) private(tmp) priority(5)
+                #pragma omp task firstprivate(next_level0_part_1, next_level0_part_2) private(tmp, tk, next_level0_part) priority(5)
                 {
-                    if (next_level0_part >= 0)
+                    for (tk = 0; tk < 2; tk++)
                     {
-                        tid = omp_get_thread_num();
-                        w->processor_counter[tid]++;
+                        if (tk == 0)
+                            next_level0_part = next_level0_part_1;
+                        else
+                            next_level0_part = next_level0_part_2;
                         
-                        //printf("On tid=%d, Processing part=%d\n",tid, next_level0_part);
-                        w->processing_items++; //processing_bit_queue_has_items( w);
-                        move_scheduled_part_to_processing(w, next_level0_part);
-                        tmp = value_iterate_partition(w, next_level0_part, tid);     //Sets a convergence factor if not set and performs VI with it.
-                        
-                        if (tmp > heat_epsilon_overall) //w->parts[next_level0_part].convergence_factor
+                        if (next_level0_part >= 0)
                         {
-                            if (w->parts[next_level0_part].convergence_factor > heat_epsilon_overall)
-                                w->level1_parts[level1_part].convergence_factor = w->parts[next_level0_part].convergence_factor;
-                            if (w->part_queue->numitems > w->level1_parts[level1_part].num_sub_parts )
-                                wlog(1, "storing too many items in level0 q. NumItems = %d\n",w->part_queue->numitems);
-                            maxheat = tmp>maxheat ? tmp: maxheat;       //TBD maxheat
-            /*            if (w->parts[next_level0_part].convergence_factor > heat_epsilon_overall)
-                        {
-                            add_partition_for_eval(w, next_level0_part);        //Add it back to the queue as even though it converged to convergence factor, the factor was bigger than final epsilon.
-                        }*/
+                            tid = omp_get_thread_num();
+                            w->processor_counter[tid]++;
+                            
+                            //printf("On tid=%d, Processing part=%d\n",tid, next_level0_part);
+                            w->processing_items++; //processing_bit_queue_has_items( w);
+                            move_scheduled_part_to_processing(w, next_level0_part);
+                            tmp = value_iterate_partition(w, next_level0_part, tid);     //Sets a convergence factor if not set and performs VI with it.
+                            
+                            if (tmp > heat_epsilon_overall) //w->parts[next_level0_part].convergence_factor
+                            {
+                                if (w->parts[next_level0_part].convergence_factor > heat_epsilon_overall)
+                                    w->level1_parts[level1_part].convergence_factor = w->parts[next_level0_part].convergence_factor;
+                                if (w->part_queue->numitems > w->level1_parts[level1_part].num_sub_parts )
+                                    wlog(1, "storing too many items in level0 q. NumItems = %d\n",w->part_queue->numitems);
+                                maxheat = tmp>maxheat ? tmp: maxheat;       //TBD maxheat
+                /*            if (w->parts[next_level0_part].convergence_factor > heat_epsilon_overall)
+                            {
+                                add_partition_for_eval(w, next_level0_part);        //Add it back to the queue as even though it converged to convergence factor, the factor was bigger than final epsilon.
+                            }*/
+                            }
+                            w->processing_items--; //processing_bit_queue_has_items( w);
                         }
-                        w->processing_items--; //processing_bit_queue_has_items( w);
-                    }
                     #pragma omp flush
+                    }
                 }
 		#pragma omp flush
             }
