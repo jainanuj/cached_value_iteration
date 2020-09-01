@@ -308,8 +308,8 @@ double value_iterate_level1_partition( world_t *w, int level1_part )
     double  tmp, maxheat = 0;
     
     empty_queue_conc(w->part_queue);
-    empty_bit_queue_conc(w->part_level0_waiting_bitq);
-    empty_bit_queue_conc(w->part_level0_processing_bit_queue);
+    empty_bit_queue(w->part_level0_waiting_bitq);
+    empty_bit_queue(w->part_level0_processing_bit_queue);
     
     for (i=0; i< w->level1_parts[level1_part].num_sub_parts; i++ )
     {
@@ -322,27 +322,32 @@ double value_iterate_level1_partition( world_t *w, int level1_part )
     }
 #pragma omp parallel private(next_level0_part, tmp) shared(w)
     {
-        while (part_available_to_process(w) || bit_queue_conc_has_items(w->part_level0_processing_bit_queue))     //|| processing part
+        while (part_available_to_process(w))// || bit_queue_has_items(w->part_level0_processing_bit_queue))     //|| processing part
         {
             next_level0_part = get_next_part(w);
             if ( (next_level0_part >= 0) && (next_level0_part < w->num_global_parts) )
             {
-                if (!queue_conc_add_bit(w->part_level0_processing_bit_queue, next_level0_part))  //Set processing bit for next_lelvel0_part
+/*                if (!queue_conc_add_bit(w->part_level0_processing_bit_queue, next_level0_part))  //Set processing bit for next_lelvel0_part
                 {
                     wlog(1, "STRANGE!!. Part %d was to be added for processing but processing bit was already set. Should be rare. Will move on to next\n",next_level0_part);
                     continue;
-                }
+                }*/
+#pragma omp critical
+                queue_add_bit(w->part_level0_processing_bit_queue, next_level0_part);
                 
                 tmp = value_iterate_partition(w, next_level0_part);     //Process
                 
-                if (!bit_queue_conc_pop(w->part_level0_processing_bit_queue, next_level0_part))  //reset processing bit.
+/*                if (!bit_queue_conc_pop(w->part_level0_processing_bit_queue, next_level0_part))  //reset processing bit.
                 {
                     wlog(1, "STRANGEE!!!. Part %d was just done processing but processing bit was already unset\n",next_level0_part);
-                }
+                }*/
+#pragma omp critical
+                bit_queue_pop(w->part_level0_processing_bit_queue, next_level0_part);
                 
-                if (check_bit_obj_present_conc(w->part_level0_waiting_bitq, next_level0_part))      //check if in wait, move back to q as processing done.
+                if (check_bit_obj_present(w->part_level0_waiting_bitq, next_level0_part))      //check if in wait, move back to q as processing done.
                 {
-                    bit_queue_conc_pop(w->part_level0_waiting_bitq, next_level0_part);
+#pragma omp critical
+                    bit_queue_pop(w->part_level0_waiting_bitq, next_level0_part);
                     queue_conc_add(w->part_queue, next_level0_part);
                 }
                 else  if (tmp > heat_epsilon_overall)       //look at deps only if it was not added back to ActiveQ from waiting && tmp > epsilon
@@ -363,7 +368,7 @@ double value_iterate_level1_partition( world_t *w, int level1_part )
 #pragma omp single
             {
                 loopCount++;
-                if (loopCount % 1000)
+                if (loopCount % 1000 == 0)
                 {
                     printf("LoopCount is %d. Calling monitor numbers.\n",loopCount);
                     monitor_numbers(w);
@@ -522,11 +527,14 @@ void add_level0_partition_deps_for_eval(world_t *w, int l_part_changed)
     index1 = 0;
     while ( med_hash_iterate( dep_part_hash, &index1, &l_start_part, &v ) )
     {
-        if ( !(check_bit_obj_present_conc(w->part_level0_processing_bit_queue, l_start_part) ||     //Add only if it is not already waiting or in processing.
-              check_bit_obj_present_conc(w->part_level0_waiting_bitq, l_start_part)) )
+        if ( !(check_bit_obj_present(w->part_level0_processing_bit_queue, l_start_part) ||     //Add only if it is not already waiting or in processing.
+              check_bit_obj_present(w->part_level0_waiting_bitq, l_start_part)) )
             queue_conc_add(w->part_queue, l_start_part);
-        else if (check_bit_obj_present_conc(w->part_level0_processing_bit_queue, l_start_part))
-            queue_conc_add_bit(w->part_level0_waiting_bitq, l_start_part);
+        else if (check_bit_obj_present(w->part_level0_processing_bit_queue, l_start_part))
+        {
+#pragma omp critical
+            queue_add_bit(w->part_level0_waiting_bitq, l_start_part);
+        }
     }
     
     dep_part_hash = w->parts[ l_part_changed ].my_global_dependents;

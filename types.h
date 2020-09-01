@@ -119,8 +119,8 @@ typedef struct world_t {
     queue_conc *part_level1_queue;
     
     bit_queue_conc *part_level0_bit_queue;
-    bit_queue_conc *part_level0_processing_bit_queue;
-    bit_queue_conc *part_level0_waiting_bitq;
+    bit_queue *part_level0_processing_bit_queue;
+    bit_queue *part_level0_waiting_bitq;
 
 //    bit_queue *terminal_bit_queue;
 //    bit_queue *dead_bit_queue;
