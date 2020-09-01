@@ -11,6 +11,7 @@
 #include "med_hash.h"
 #include "intqueue.h"
 #include "intheap.h"
+#include "intqueue_conc.h"
 
 #define PART_SIZE  5000//5000//6100       //3
 #define ARR_SIZE  1000000
@@ -113,20 +114,14 @@ typedef struct world_t {
     part_t *parts;
     level1_part_t   *level1_parts;
     heap *part_heap;
-    queue *part_queue;
-    queue *in_works_queue;
-    queue *bk_waiting_q;
-    queue *part_level1_queue;
-    bit_queue *part_level0_bit_queue;
-    bit_queue *part_level0_processing_bit_queue;
-    bit_queue *part_level0_waiting_bitq;
-    bit_queue *part_scheduled_bitq;
-    bit_queue *bk_processing_bq;
-    bit_queue *bk_scheduled_bq;
-    bit_queue *in_works_bq;
-    bit_queue *add_deps_indicator_bq;
-    bit_queue *bk_add_deps_indicator_bq;
     
+    queue_conc *part_queue;
+    queue_conc *part_level1_queue;
+    
+    bit_queue_conc *part_level0_bit_queue;
+    bit_queue_conc *part_level0_processing_bit_queue;
+    bit_queue_conc *part_level0_waiting_bitq;
+
 //    bit_queue *terminal_bit_queue;
 //    bit_queue *dead_bit_queue;
 //    bit_queue *planningStates;

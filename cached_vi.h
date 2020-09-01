@@ -23,52 +23,19 @@
 //double value_iterate(world_t *w, double heat_epsilon_current);
 double value_iterate( world_t *w, double epsilon_partition, double epsilon_overall );
 double value_iterate_level1_partition( world_t *w, int level1_part );
-double value_iterate_partition( world_t *w, int l_part, int threadID );
-void monitor(world_t *w, int loopCount, int partGenerated);
-void monitor_numbers(world_t *w);
+double value_iterate_partition( world_t *w, int l_part );
 
 int level1_part_available_to_process(world_t *w);
 int get_next_level1_part(world_t *w);
 void add_level1_parts_deps_for_eval(world_t *w, int level1_part_changed);
 int clear_level0_queue(world_t *w);
-int clear_level0_processing_bit_queue(world_t *w);
-int clear_level0_wait_bit_q(world_t *w);
-int clear_processor_busy_queue(world_t *w);
-int clear_scheduled_bit_q(world_t *w);
-void copy_bit_queue(bit_queue *dest_bq, bit_queue *src_bitq);
-int move_scheduled_part_to_processing(world_t *w, int l_part);
-
 unsigned long check_dirty(world_t *w, int l_part);
-unsigned long check_dirty_level0_processing(world_t *w, int l_part);
-unsigned long check_dirty_waiting_q(world_t *w, int l_part);
-
 int add_level0_queue(world_t *w, int l_part);
-
 int clear_level0_dirty_flag(world_t *w, int l_part);
-int clear_level0_processing_flag(world_t *w, int l_part);
-int clear_waiting_dirty_flag(world_t *w, int l_part);
-int clear_processor_busy_flag(world_t *w, int threadID);
-void process_in_works_queue(world_t *w);
-
-int find_new_leader(world_t *w);
-void test_and_set_leader(world_t *w, int threadID);
-int isLeader(world_t *w, int threadID);
-
-int processing_bit_queue_has_items(world_t *w);
-int scheduled_bit_queue_has_items(world_t *w);
-
-
-int pop_level0_queue(world_t *w, int* next_part);
-
 int part_available_to_process(world_t *w);
-int get_next_part(world_t *w, int threadID);
-void add_level0_partition_deps_for_eval(world_t *w, int l_part_changed, int add_immediate);
-
+int get_next_part(world_t *w);
+void add_level0_partition_deps_for_eval(world_t *w, int l_part_changed);
 int set_dirty(world_t *w, int l_part);
-int set_dirty_level0_processing(world_t *w, int l_part, int threadID);
-int set_dirty_waiting_q(world_t *w, int l_part);
-
-int ext_parts_processing(world_t *w, int l_part);
 void add_partition_for_eval(world_t *w, int l_part);
 double value_update( world_t *w, int l_part, int l_state );
 double reward_or_value( world_t *w, int l_part, int l_state, int a );
@@ -88,6 +55,8 @@ int pick_partition( world_t *w );
 double get_remainder_no_cache( world_t *w, int l_part, int l_state, int action );
 double reward_or_value_no_cache( world_t *w, int l_part, int l_state, int a );
 double get_heat( world_t *w, int l_part, int l_state );
+
+void monitor_numbers(world_t *w);
 
 
 
