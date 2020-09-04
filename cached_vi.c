@@ -307,7 +307,8 @@ double value_iterate_level1_partition( world_t *w, int level1_part )
     int i, l_part, next_level0_part, loopCount = 0;
     double  tmp, maxheat = 0;
     
-    empty_queue_conc(w->part_queue);
+//    empty_queue_conc(w->part_queue);
+    empty_queue(w->part_queue);
     empty_bit_queue(w->part_level0_waiting_bitq);
     empty_bit_queue(w->part_level0_processing_bit_queue);
     
@@ -320,7 +321,7 @@ double value_iterate_level1_partition( world_t *w, int level1_part )
             clear_level0_dirty_flag(w, l_part);
         }
     }
-#pragma omp parallel private(next_level0_part, tmp) shared(w)
+#pragma omp parallel private(next_level0_part, tmp) shared(w) proc_bind(spread)
     {
         while (part_available_to_process(w))// || bit_queue_has_items(w->part_level0_processing_bit_queue))     //|| processing part
         {
@@ -332,7 +333,7 @@ double value_iterate_level1_partition( world_t *w, int level1_part )
                     wlog(1, "STRANGE!!. Part %d was to be added for processing but processing bit was already set. Should be rare. Will move on to next\n",next_level0_part);
                     continue;
                 }*/
-#pragma omp critical
+//#pragma omp critical
                 queue_add_bit(w->part_level0_processing_bit_queue, next_level0_part);
                 
                 tmp = value_iterate_partition(w, next_level0_part);     //Process
@@ -341,14 +342,15 @@ double value_iterate_level1_partition( world_t *w, int level1_part )
                 {
                     wlog(1, "STRANGEE!!!. Part %d was just done processing but processing bit was already unset\n",next_level0_part);
                 }*/
-#pragma omp critical
+//#pragma omp critical
                 bit_queue_pop(w->part_level0_processing_bit_queue, next_level0_part);
                 
                 if (check_bit_obj_present(w->part_level0_waiting_bitq, next_level0_part))      //check if in wait, move back to q as processing done.
                 {
-#pragma omp critical
+//#pragma omp critical
                     bit_queue_pop(w->part_level0_waiting_bitq, next_level0_part);
-                    queue_conc_add(w->part_queue, next_level0_part);
+//                    queue_conc_add(w->part_queue, next_level0_part);
+                    queue_add(w->part_queue, next_level0_part);
                 }
                 else  if (tmp > heat_epsilon_overall)       //look at deps only if it was not added back to ActiveQ from waiting && tmp > epsilon
                 {
@@ -466,12 +468,14 @@ double value_iterate_partition( world_t *w, int l_part )
 
 int level1_part_available_to_process(world_t *w)
 {
-    return queue_conc_has_items(w->part_level1_queue);
+//    return queue_conc_has_items(w->part_level1_queue);
+    return queue_has_items(w->part_level1_queue);
 }
 int get_next_level1_part(world_t *w)
 {
     int next_level1_partition;
-    queue_conc_pop(w->part_level1_queue, &next_level1_partition);
+//    queue_conc_pop(w->part_level1_queue, &next_level1_partition);
+    queue_pop(w->part_level1_queue, &next_level1_partition);
     return next_level1_partition;
 }
 void add_level1_parts_deps_for_eval(world_t *w, int level1_part_changed)
@@ -486,34 +490,41 @@ void add_level1_parts_deps_for_eval(world_t *w, int level1_part_changed)
     index1 = 0;
     while ( med_hash_iterate( dep_part_hash, &index1, &level1_start_part, &v ) )
     {
-        queue_conc_add(w->part_level1_queue, level1_start_part);
+//        queue_conc_add(w->part_level1_queue, level1_start_part);
+        queue_add(w->part_level1_queue, level1_start_part);
     }
 }
 
 int clear_level0_queue(world_t *w)
 {
-    return empty_queue_conc(w->part_queue);
+//    return empty_queue_conc(w->part_queue);
+    return empty_queue(w->part_queue);
 }
 unsigned long check_dirty(world_t *w, int l_part)
 {
-    return check_bit_obj_present_conc(w->part_level0_bit_queue, l_part);
+//    return check_bit_obj_present_conc(w->part_level0_bit_queue, l_part);
+    return check_bit_obj_present(w->part_level0_bit_queue, l_part);
 }
 int add_level0_queue(world_t *w, int l_part)
 {
-    return queue_conc_add(w->part_queue, l_part);
+//    return queue_conc_add(w->part_queue, l_part);
+    return queue_add(w->part_queue, l_part);
 }
 int clear_level0_dirty_flag(world_t *w, int l_part)
 {
-    return bit_queue_conc_pop(w->part_level0_bit_queue, l_part);
+//    return bit_queue_conc_pop(w->part_level0_bit_queue, l_part);
+    return bit_queue_pop(w->part_level0_bit_queue, l_part);
 }
 int part_available_to_process(world_t *w)
 {
-    return queue_conc_has_items(w->part_queue);
+//    return queue_conc_has_items(w->part_queue);
+    return queue_has_items(w->part_queue);
 }
 int get_next_part(world_t *w)
 {
     int next_partition;
-    queue_conc_pop(w->part_queue, &next_partition);
+//    queue_conc_pop(w->part_queue, &next_partition);
+    queue_pop(w->part_queue, &next_partition);
     return next_partition;
 }
 void add_level0_partition_deps_for_eval(world_t *w, int l_part_changed)
@@ -529,10 +540,11 @@ void add_level0_partition_deps_for_eval(world_t *w, int l_part_changed)
     {
         if ( !(check_bit_obj_present(w->part_level0_processing_bit_queue, l_start_part) ||     //Add only if it is not already waiting or in processing.
               check_bit_obj_present(w->part_level0_waiting_bitq, l_start_part)) )
-            queue_conc_add(w->part_queue, l_start_part);
+//            queue_conc_add(w->part_queue, l_start_part);
+            queue_add(w->part_queue, l_start_part);
         else if (check_bit_obj_present(w->part_level0_processing_bit_queue, l_start_part))
         {
-#pragma omp critical
+//#pragma omp critical
             queue_add_bit(w->part_level0_waiting_bitq, l_start_part);
         }
     }
@@ -547,13 +559,15 @@ void add_level0_partition_deps_for_eval(world_t *w, int l_part_changed)
 }
 void add_partition_for_eval(world_t *w, int l_part)
 {
-    queue_conc_add(w->part_queue, l_part);
+//    queue_conc_add(w->part_queue, l_part);
+    queue_add(w->part_queue, l_part);
     set_dirty(w, l_part);
 }
 
 int set_dirty(world_t *w, int l_part)
 {
-    return queue_conc_add_bit(w->part_level0_bit_queue, l_part);
+//    return queue_conc_add_bit(w->part_level0_bit_queue, l_part);
+    return queue_add_bit(w->part_level0_bit_queue, l_part);
 }
 
 //Need to minimize cost (not maximize reward)

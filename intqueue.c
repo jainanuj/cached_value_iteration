@@ -106,31 +106,29 @@ int queue_add( queue *q, int obj )
 //    double t_start, t_end;
 //    t_start = whenq();
 
-#ifndef BITQ
-    pos = check_obj_present_in_q(q, obj);
-    if (pos != -1)
-        return 1;     //Item already present at position pos.
-#else
-    if (check_bit_obj_present(q->bitqueue, obj))
-        return 1;
-#endif
-    
-    if ( q->numitems >= q->maxitems )
+    #pragma omp critical
     {
-        fprintf(stderr, "Hey!  Queue's full!\n");
-        return 0;
+        if ( q->numitems >= q->maxitems )
+        {
+            fprintf(stderr, "Hey!  Queue's full!\n");
+            return 0;
+        }
+        #ifndef BITQ
+            pos = check_obj_present_in_q(q, obj);
+            if (pos != -1)
+                return 1;     //Item already present at position pos.
+        #else
+            if (check_bit_obj_present_internal(q->bitqueue, obj))
+                return 0;
+        #endif
+            q->items[ q->end_item_ptr ] = obj;
+            q->end_item_ptr = ((q->end_item_ptr + 1 ) % q->maxitems);
+            q->numitems++;
+        #ifdef BITQ
+            queue_add_bit_internal(q->bitqueue, obj);
+        #endif
     }
-
-    // tack the new object onto the end of the queue.
-//    pos = q->end_item_ptr;
-    q->items[ q->end_item_ptr ] = obj;
-    q->end_item_ptr = ((q->end_item_ptr + 1 ) % q->maxitems);
-    q->numitems++;
-#ifdef BITQ
-    queue_add_bit(q->bitqueue, obj);
-#endif
 //    t_end = whenq();
-    
 //    q->add_time += (t_end - t_start);
     
     return 1;
@@ -145,20 +143,22 @@ int queue_pop(queue *q, int *result )
 //    double t_start, t_end;
 //    t_start = whenq();
     *result = -1;
+#pragma omp critical
+    {
     if ( (q->numitems <= 0) || (q->start_item_ptr < 0) )
     {
         //fprintf( stderr, "Hey! queue's empty!\n" );
         return 0;
     }
-    
     *result = q->items[q->start_item_ptr];
     q->items[q->start_item_ptr] = -1;
     q->numitems--;
     q->start_item_ptr = ((q->start_item_ptr + 1 ) % q->maxitems);
 
 #ifdef BITQ
-    bit_queue_pop(q->bitqueue, *result);
+    bit_queue_pop_internal(q->bitqueue, *result);
 #endif
+    }
     
 //    t_end = whenq();
 //    q->pop_time += (t_end - t_start);
@@ -229,27 +229,123 @@ unsigned long check_bit_obj_present( bit_queue *bq, int obj )
         exit(0);
     }
     //will return non-zero if the bit is already set else zero.
+#pragma omp critical
+    {
+        return (bq->bit_arrays[index_bit_array] & number_bitset);
+    }
+}
+
+unsigned long check_bit_obj_present_internal( bit_queue *bq, int obj )
+{
+    int index_bit_array = obj/BIT_ARRAY_SIZE;       //index of the bit array to use.
+    int set_bit = obj - (index_bit_array * BIT_ARRAY_SIZE);     //The index of bit to be set in the chosen bit array
+    unsigned long number_bitset = 0x1 << set_bit;        //The number with the required bit set.
+    if ( (set_bit > BIT_ARRAY_SIZE) || (index_bit_array >= bq->max_bit_arrays))
+    {
+        fprintf(stderr, "Bit manip problem!\n");
+        exit(0);
+    }
+    //will return non-zero if the bit is already set else zero.
     return (bq->bit_arrays[index_bit_array] & number_bitset);
 }
+
 
 int bit_queue_pop( bit_queue *bq, int obj )
 {
     int index_bit_array = obj/BIT_ARRAY_SIZE;       //index of the bit array to use.
     int set_bit = obj - (index_bit_array * BIT_ARRAY_SIZE);     //The index of bit to be set in the chosen bit array
     unsigned long number_bit_unset = 0x1 << set_bit;        //The number with the required bit set.
-    if (!(bq->bit_arrays[index_bit_array] & number_bit_unset))
-        return 1;           //bit not in the queue so nothing to do.
-    number_bit_unset = (~number_bit_unset) & MAX_DEB_SEQ_SIZE;
+    unsigned long number_bit_unset_comp = (~number_bit_unset) & MAX_DEB_SEQ_SIZE;   //set the bit corresponding to obj as 0 and everything else as 1
+    
     if ( (set_bit > BIT_ARRAY_SIZE) || (index_bit_array >= bq->max_bit_arrays) )
     {
         fprintf(stderr, "Bit manip problem!\n");
         exit(0);
     }
-    bq->bit_arrays[index_bit_array] &= number_bit_unset;  //set the bit corresponding to obj as 0
-    bq->num_items--;
+
+#pragma omp critical
+    {
+        if (bq->bit_arrays[index_bit_array] & number_bit_unset)
+        {
+            bq->bit_arrays[index_bit_array] &= number_bit_unset_comp;  //set the bit corresponding to obj as 0. Everything else as is.
+            bq->num_items--;
+        }
+        else
+            return 0;
+    }
     return 1;
     
 }
+
+int bit_queue_pop_internal( bit_queue *bq, int obj )
+{
+    int index_bit_array = obj/BIT_ARRAY_SIZE;       //index of the bit array to use.
+    int set_bit = obj - (index_bit_array * BIT_ARRAY_SIZE);     //The index of bit to be set in the chosen bit array
+    unsigned long number_bit_unset = 0x1 << set_bit;        //The number with the required bit set.
+    unsigned long number_bit_unset_comp = (~number_bit_unset) & MAX_DEB_SEQ_SIZE;   //set the bit corresponding to obj as 0 and everything else as 1
+    
+    if ( (set_bit > BIT_ARRAY_SIZE) || (index_bit_array >= bq->max_bit_arrays) )
+    {
+        fprintf(stderr, "Bit manip problem!\n");
+        exit(0);
+    }
+
+    if (bq->bit_arrays[index_bit_array] & number_bit_unset)
+    {
+        bq->bit_arrays[index_bit_array] &= number_bit_unset_comp;  //set the bit corresponding to obj as 0. Everything else as is.
+        bq->num_items--;
+    }
+    else
+        return 0;
+    return 1;
+    
+}
+
+int queue_add_bit( bit_queue *bq, int obj )
+{
+    int index_bit_array = obj/BIT_ARRAY_SIZE;       //index of the bit array to use.
+    int set_bit = obj - (index_bit_array * BIT_ARRAY_SIZE);     //The index of bit to be set in the chosen bit array
+    unsigned long number_bitset = 0x1 << set_bit;        //The number with the required bit set.
+    if ( (set_bit > BIT_ARRAY_SIZE) || (index_bit_array >= bq->max_bit_arrays) )
+    {
+        fprintf(stderr, "Bit manip problem!\n");
+        exit(0);
+    }
+#pragma omp critical
+    {
+        //Setting the required bit in the appropriate bit array.
+        if (!(bq->bit_arrays[index_bit_array] & number_bitset))     //Need to set if not present already.
+        {
+            bq->bit_arrays[index_bit_array] |= number_bitset;
+            bq->num_items++;
+        }
+        else
+            return 0;
+    }
+    return 1;
+}
+
+int queue_add_bit_internal( bit_queue *bq, int obj )
+{
+    int index_bit_array = obj/BIT_ARRAY_SIZE;       //index of the bit array to use.
+    int set_bit = obj - (index_bit_array * BIT_ARRAY_SIZE);     //The index of bit to be set in the chosen bit array
+    unsigned long number_bitset = 0x1 << set_bit;        //The number with the required bit set.
+    if ( (set_bit > BIT_ARRAY_SIZE) || (index_bit_array >= bq->max_bit_arrays) )
+    {
+        fprintf(stderr, "Bit manip problem!\n");
+        exit(0);
+    }
+    //Setting the required bit in the appropriate bit array.
+    if (!(bq->bit_arrays[index_bit_array] & number_bitset))     //Need to set if not present already.
+    {
+        bq->bit_arrays[index_bit_array] |= number_bitset;
+        bq->num_items++;
+    }
+    else
+        return 0;
+    return 1;
+}
+
 
 int bit_queue_last_item(bit_queue *bq)
 {
@@ -294,28 +390,6 @@ int least_bit_deb(unsigned long map)
      return least_bit_pos;
 }
 
-
-
-
-
-int queue_add_bit( bit_queue *bq, int obj )
-{
-    int index_bit_array = obj/BIT_ARRAY_SIZE;       //index of the bit array to use.
-    int set_bit = obj - (index_bit_array * BIT_ARRAY_SIZE);     //The index of bit to be set in the chosen bit array
-    unsigned long number_bitset = 0x1 << set_bit;        //The number with the required bit set.
-    if ( (set_bit > BIT_ARRAY_SIZE) || (index_bit_array >= bq->max_bit_arrays) )
-    {
-        fprintf(stderr, "Bit manip problem!\n");
-        exit(0);
-    }
-    //Setting the required bit in the appropriate bit array.
-    if (!(bq->bit_arrays[index_bit_array] & number_bitset))     //Need to set if not present already.
-    {
-        bq->bit_arrays[index_bit_array] |= number_bitset;
-        bq->num_items++;
-    }
-    return 1;
-}
 
 void Or_bit_queue(bit_queue *bq_dest, bit_queue *bq_to_add)
 {

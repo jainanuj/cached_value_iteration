@@ -293,12 +293,14 @@ world_t *init_world(struct StateListNode *list, int component_size, int round)
     //Create all the queues needed to mantain states/parts/level1 parts to be processed during VI.
     
     //Number of parts in each level1 part. //Two params are number of items and the max value of the item.
-    w->part_queue = queue_conc_create(NUM_PARTS_IN_LEVEL1 + 1, w->num_global_parts);
+//    w->part_queue = queue_conc_create(NUM_PARTS_IN_LEVEL1 + 1, w->num_global_parts);
+    w->part_queue = queue_create(NUM_PARTS_IN_LEVEL1 + 1, w->num_global_parts);
     if (w->part_queue == NULL) {
         wlog( 1, "Error creating queue!\n" );
         exit( 0 );
     }
-    w->part_level1_queue = queue_conc_create(w->num_level1_parts, w->num_level1_parts);
+//    w->part_level1_queue = queue_conc_create(w->num_level1_parts, w->num_level1_parts);
+    w->part_level1_queue = queue_create(w->num_level1_parts, w->num_level1_parts);
     if ( w->part_level1_queue == NULL ) {
         wlog( 1, "Error creating queue!\n" );
         exit( 0 );
@@ -313,7 +315,8 @@ world_t *init_world(struct StateListNode *list, int component_size, int round)
     }
 
     //init_level1_part_queue(w);
-    w->part_level0_bit_queue = create_bit_queue_conc(w->num_global_parts);
+//    w->part_level0_bit_queue = create_bit_queue_conc(w->num_global_parts);
+    w->part_level0_bit_queue = create_bit_queue(w->num_global_parts);
     w->part_level0_processing_bit_queue = create_bit_queue(w->num_global_parts);
     w->part_level0_waiting_bitq = create_bit_queue(w->num_global_parts);
     if ( w->part_level0_bit_queue == NULL || w->part_level0_processing_bit_queue == NULL || w->part_level0_waiting_bitq == NULL ) {
@@ -329,7 +332,8 @@ void init_level1_part_queue( world_t *w )
     int level1_part;
     for ( level1_part=0; level1_part<w->num_level1_parts; level1_part++ )
     {
-        queue_conc_add(w->part_level1_queue, level1_part);
+//        queue_conc_add(w->part_level1_queue, level1_part);
+        queue_add(w->part_level1_queue, level1_part);
     }
 }
 void init_level0_bit_queue(world_t *w)
@@ -337,7 +341,8 @@ void init_level0_bit_queue(world_t *w)
     int l_part_num;
     for ( l_part_num=0; l_part_num<w->num_global_parts; l_part_num++ )
     {
-        queue_conc_add_bit( w->part_level0_bit_queue, l_part_num );
+//        queue_conc_add_bit( w->part_level0_bit_queue, l_part_num );
+        queue_add_bit( w->part_level0_bit_queue, l_part_num );
     }
 }
 
