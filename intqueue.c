@@ -57,7 +57,7 @@ queue *queue_create( int maxitems, int max_val )
   q->maxitems = maxitems;
   q->numitems = 0;
 
-  q->items = (int *)malloc( maxitems * sizeof(int) );
+  q->items = (int *)malloc( (maxitems+1) * sizeof(int) );
   if (q->items == NULL) {
     fprintf(stderr, "Out of memory!\n");
     exit(0);
@@ -116,7 +116,7 @@ int queue_add( queue *q, int obj )
         #ifndef BITQ
             pos = check_obj_present_in_q(q, obj);
             if (pos != -1)
-                return 1;     //Item already present at position pos.
+                return 0;     //Item already present at position pos.
         #else
             if (check_bit_obj_present_internal(q->bitqueue, obj))
                 return 0;
@@ -149,27 +149,35 @@ int queue_pop(queue *q, int *result )
     *result = -1;
 #pragma omp critical
     {
-    if ( (q->numitems <= 0) || (q->start_item_ptr < 0) )
-    {
-        //fprintf( stderr, "Hey! queue's empty!\n" );
-        return 0;
-    }
-    *result = q->items[q->start_item_ptr];
-    if (*result < 0)
-    {
-	    printf("Result from top of que came to be:%d. start pointer is:%d, next contents=%d.\n",*result,q->start_item_ptr,q->items[((q->start_item_ptr + 1 ) % q->maxitems)]);
-    }
-    q->items[q->start_item_ptr] = -1;
-    q->numitems--;
-    q->start_item_ptr = ((q->start_item_ptr + 1 ) % q->maxitems);
-
-#ifdef BITQ
-    bit_queue_pop_internal(q->bitqueue, *result);
-#endif
-        if (q->numitems != q->bitqueue->num_items)
+        if ( (q->numitems <= 0) || (q->start_item_ptr < 0) )
         {
-            printf("Something seriously wrong!!! number of items in q went off its internal bq, while popping %d. q->numItems=%d, q->bitqueue->num_items=%d\n",*result, q->numitems, q->bitqueue->num_items);
+            //fprintf( stderr, "Hey! queue's empty!\n" );
+            return 0;
         }
+        if ((q->start_item_ptr < 0) || (q->start_item_ptr >= q->maxitems))
+        {
+            printf("Start item is out of bounds. It is:%d\n",q->start_item_ptr);
+        }
+        *result = q->items[q->start_item_ptr];
+        if (*result < 0)
+        {
+            printf("Result from top of que came to be:%d. start pointer is:%d, next contents=%d.\n",*result,q->start_item_ptr,q->items[((q->start_item_ptr + 1 ) % q->maxitems)]);
+        }
+        q->items[q->start_item_ptr] = -1;
+        q->numitems--;
+        q->start_item_ptr = ((q->start_item_ptr + 1 ) % q->maxitems);
+        if (q->items[q->start_item_ptr] < 0)
+        {
+            printf("Start item just got messed up. It is:%d, Value is:%d. Item popped:%d. num items:%d!!!\n",q->start_item_ptr,q->items[q->start_item_ptr],*result,q->numitems);
+        }
+
+    #ifdef BITQ
+        bit_queue_pop_internal(q->bitqueue, *result);
+    #endif
+            if (q->numitems != q->bitqueue->num_items)
+            {
+                printf("Something seriously wrong!!! number of items in q went off its internal bq, while popping %d. q->numItems=%d, q->bitqueue->num_items=%d\n",*result, q->numitems, q->bitqueue->num_items);
+            }
     }
     
 //    t_end = whenq();
