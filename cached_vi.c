@@ -328,6 +328,8 @@ double value_iterate_level1_partition( world_t *w, int level1_part )
         while (part_available_to_process(w))// || bit_queue_has_items(w->part_level0_processing_bit_queue))     //|| processing part
         {
             next_level0_part = get_next_part(w);
+            if (next_level0_part == -1)
+                continue;
             if ( (next_level0_part >= 0) && (next_level0_part < w->num_global_parts) )
             {
 /*                if (!queue_conc_add_bit(w->part_level0_processing_bit_queue, next_level0_part))  //Set processing bit for next_lelvel0_part

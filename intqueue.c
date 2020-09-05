@@ -156,7 +156,7 @@ int queue_pop(queue *q, int *result )
     {
         if ( (q->numitems <= 0) || (q->start_item_ptr < 0) )
         {
-            fprintf( stderr, "Hey! queue's empty!\n" );
+            fprintf( stderr, "Hey! queue's empty for thread: %d!\n",omp_get_thread_num() );
             retVal = 0;
         }
         else
