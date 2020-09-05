@@ -307,6 +307,7 @@ double value_iterate_level1_partition( world_t *w, int level1_part )
 {
     int i, l_part, next_level0_part, loopCount = 0;
     double  tmp, maxheat = 0;
+    int done = 0;
     
 //    empty_queue_conc(w->part_queue);
     empty_queue(w->part_queue);
@@ -323,14 +324,21 @@ double value_iterate_level1_partition( world_t *w, int level1_part )
             clear_level0_dirty_flag(w, l_part);
         }
     }
-#pragma omp parallel private(next_level0_part, tmp) shared(w) proc_bind(spread)
+    done = 0;
+#pragma omp parallel private(next_level0_part, tmp) shared(w, done) proc_bind(spread)
     {
         while (part_available_to_process(w))// || bit_queue_has_items(w->part_level0_processing_bit_queue))     //|| processing part
         {
+            if (done == 1)
+            {
+                printf("Thread: %d got done as true so breaking out.\n",omp_get_thread_num());
+                break;
+            }
             next_level0_part = get_next_part(w);
             if (next_level0_part == -1)
             {
                 printf("Thread: %d got no part from q\n",omp_get_thread_num());
+                done = 1;
                 break;
             }
             if ( (next_level0_part >= 0) && (next_level0_part < w->num_global_parts) )
@@ -386,7 +394,7 @@ double value_iterate_level1_partition( world_t *w, int level1_part )
         }   //End of While loop
         printf("Thread: %d got 0 items in queue, so exiting\n",omp_get_thread_num());
         printf("At this time whent this thread is exiting, q->numItems=%d\n",w->part_queue->numitems);
-        exit(0);
+        //exit(0);
     }   //End of Parallel region.
     return maxheat;
 }
