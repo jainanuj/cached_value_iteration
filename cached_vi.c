@@ -13,6 +13,7 @@
 
 double heat_epsilon_partition_initial;
 double heat_epsilon_overall;
+extern int ITERATING;
 
 /*double value_iterate( world_t *w, double heat_epsilon_current )
 {
@@ -311,6 +312,7 @@ double value_iterate_level1_partition( world_t *w, int level1_part )
     empty_queue(w->part_queue);
     empty_bit_queue(w->part_level0_waiting_bitq);
     empty_bit_queue(w->part_level0_processing_bit_queue);
+    ITERATING = 1;
     
     for (i=0; i< w->level1_parts[level1_part].num_sub_parts; i++ )
     {

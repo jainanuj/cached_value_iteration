@@ -19,6 +19,7 @@
 }
 */
 
+extern int ITERATING;
 
 int check_obj_present_in_q(queue* q, int obj)
 {
@@ -166,7 +167,7 @@ int queue_pop(queue *q, int *result )
         q->items[q->start_item_ptr] = -1;
         q->numitems--;
         q->start_item_ptr = ((q->start_item_ptr + 1 ) % q->maxitems);
-        if (q->items[q->start_item_ptr] < 0)
+        if ( (q->items[q->start_item_ptr] < 0) && (ITERATING == 1) )
         {
             printf("Start item just got messed up. It is:%d, EndItem is:%d,Start Value is:%d, endValue=%d. Item popped:%d. num items:%d!!!\n",q->start_item_ptr,q->end_item_ptr, q->items[q->start_item_ptr],q->items[q->end_item_ptr], *result,q->numitems);
         }

@@ -15,6 +15,7 @@
 double heat_epsilon_final = heat_epsilon_final_def;
 double heat_epsilon_initial = heat_epsilon_initial_def;
 extern char       gInputFileName[];
+int ITERATING = 0;
 #define CLUSTERED
 
 
