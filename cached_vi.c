@@ -379,6 +379,7 @@ double value_iterate_level1_partition( world_t *w, int level1_part )
                 }
             }
         }   //End of While loop
+        printf("Thread: %d got 0 items in queue, so exiting\n",omp_get_thread_num());
     }   //End of Parallel region.
     return maxheat;
 }
