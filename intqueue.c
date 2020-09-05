@@ -105,6 +105,7 @@ int empty_queue( queue *q)
 
 int queue_add( queue *q, int obj )
 {
+    int retVal = 0;
 //    double t_start, t_end;
 //    t_start = whenq();
 
@@ -113,31 +114,32 @@ int queue_add( queue *q, int obj )
         if ( q->numitems >= q->maxitems )
         {
             fprintf(stderr, "Hey!  Queue's full!\n");
-            return 0;
+            retVal = 0;
         }
-        #ifndef BITQ
-            pos = check_obj_present_in_q(q, obj);
-            if (pos != -1)
-                return 0;     //Item already present at position pos.
-        #else
-            if (check_bit_obj_present_internal(q->bitqueue, obj))
-                return 0;
-        #endif
-            q->items[ q->end_item_ptr ] = obj;
-            q->end_item_ptr = ((q->end_item_ptr + 1 ) % q->maxitems);
-            q->numitems++;
-        #ifdef BITQ
-            queue_add_bit_internal(q->bitqueue, obj);
-        #endif
-        if (q->numitems != q->bitqueue->num_items)
+        else
         {
-            printf("Something seriously wrong!!! number of items in q went off its internal bq, while adding %d",obj);
+            if (check_bit_obj_present_internal(q->bitqueue, obj))
+                retVal = 0;
+            else
+            {
+                q->items[ q->end_item_ptr ] = obj;
+                q->end_item_ptr = ((q->end_item_ptr + 1 ) % q->maxitems);
+                q->numitems++;
+            #ifdef BITQ
+                queue_add_bit_internal(q->bitqueue, obj);
+            #endif
+                if (q->numitems != q->bitqueue->num_items)
+                {
+                    printf("Something seriously wrong!!! number of items in q went off its internal bq, while adding %d",obj);
+                }
+                retVal = 1;
+            }
         }
     }
 //    t_end = whenq();
 //    q->add_time += (t_end - t_start);
     
-    return 1;
+    return retVal;
 }
 
 //
@@ -148,46 +150,52 @@ int queue_pop(queue *q, int *result )
 {
 //    double t_start, t_end;
 //    t_start = whenq();
+    int retVal = 0;
     *result = -1;
 #pragma omp critical
     {
         if ( (q->numitems <= 0) || (q->start_item_ptr < 0) )
         {
             fprintf( stderr, "Hey! queue's empty!\n" );
-            return 0;
+            retVal = 0;
         }
-        if ((q->start_item_ptr < 0) || (q->start_item_ptr >= q->maxitems))
+        else
         {
-            printf("Start item is out of bounds. It is:%d\n",q->start_item_ptr);
-        }
-        *result = q->items[q->start_item_ptr];
-        if (*result < 0)
-        {
-            printf("Result from top of que came to be:%d. start pointer is:%d,numItems=%d maxItems=%d, next contents=%d.\n",*result,q->start_item_ptr,q->numitems,q->maxitems,q->items[((q->start_item_ptr + 1 ) % q->maxitems)]);
-        }
-        q->items[q->start_item_ptr] = -1;
-        q->numitems--;
-        q->start_item_ptr = ((q->start_item_ptr + 1 ) % q->maxitems);
-        if ( (q->items[q->start_item_ptr] < 0) && (ITERATING == 1) && (q->numitems > 0))
-        {
-            printf("Start item just got messed up. It is:%d, EndItem is:%d,Start Value is:%d, endValue=%d. Item popped:%d. num items:%d!!!\n",q->start_item_ptr,q->end_item_ptr, q->items[q->start_item_ptr],q->items[q->end_item_ptr], *result,q->numitems);
-        }
-
-    #ifdef BITQ
-        if (!bit_queue_pop_internal(q->bitqueue, *result))
-	{
-	    printf("Something wrong!!. ITem:%d was popped from q, but not present in bq.q->numitems=%d,q->bq->num_items=%d\n",*result,q->numitems, q->bitqueue->num_items);
-	}
-    #endif
-            if (q->numitems != q->bitqueue->num_items)
+            if ((q->start_item_ptr < 0) || (q->start_item_ptr >= q->maxitems))
             {
-                printf("Something seriously wrong!!! number of items in q went off its internal bq, while popping %d. q->numItems=%d, q->bitqueue->num_items=%d\n",*result, q->numitems, q->bitqueue->num_items);
+                printf("Start item is out of bounds. It is:%d\n",q->start_item_ptr);
+                retVal = 0;
             }
+            else
+            {
+                *result = q->items[q->start_item_ptr];
+                if (*result < 0)
+                {
+                    printf("Result from top of que came to be:%d. start pointer is:%d,numItems=%d maxItems=%d, next contents=%d.\n",*result,q->start_item_ptr,q->numitems,q->maxitems,q->items[((q->start_item_ptr + 1 ) % q->maxitems)]);
+                }
+                q->items[q->start_item_ptr] = -1;
+                q->numitems--;
+                q->start_item_ptr = ((q->start_item_ptr + 1 ) % q->maxitems);
+                if ( (q->items[q->start_item_ptr] < 0) && (ITERATING == 1) && (q->numitems > 0))
+                {
+                    printf("Start item just got messed up. It is:%d, EndItem is:%d,Start Value is:%d, endValue=%d. Item popped:%d. num items:%d!!!\n",q->start_item_ptr,q->end_item_ptr, q->items[q->start_item_ptr],q->items[q->end_item_ptr], *result,q->numitems);
+                }
+                if (!bit_queue_pop_internal(q->bitqueue, *result))
+                {
+                    printf("Something wrong!!. ITem:%d was popped from q, but not present in bq.q->numitems=%d,q->bq->num_items=%d\n",*result,q->numitems, q->bitqueue->num_items);
+                }
+                if (q->numitems != q->bitqueue->num_items)
+                {
+                    printf("Something seriously wrong!!! number of items in q went off its internal bq, while popping %d. q->numItems=%d, q->bitqueue->num_items=%d\n",*result, q->numitems, q->bitqueue->num_items);
+                }
+                retVal = 1;
+            }
+        }
     }
     
 //    t_end = whenq();
 //    q->pop_time += (t_end - t_start);
-    return 1;
+    return retVal;
 }
 
 
@@ -248,6 +256,7 @@ unsigned long check_bit_obj_present( bit_queue *bq, int obj )
     int index_bit_array = obj/BIT_ARRAY_SIZE;       //index of the bit array to use.
     int set_bit = obj - (index_bit_array * BIT_ARRAY_SIZE);     //The index of bit to be set in the chosen bit array
     unsigned long number_bitset = 0x1 << set_bit;        //The number with the required bit set.
+    unsigned long retVal = 0;
     if ( (set_bit > BIT_ARRAY_SIZE) || (index_bit_array >= bq->max_bit_arrays))
     {
         fprintf(stderr, "Bit manip problem!\n");
@@ -256,8 +265,9 @@ unsigned long check_bit_obj_present( bit_queue *bq, int obj )
     //will return non-zero if the bit is already set else zero.
 #pragma omp critical
     {
-        return (bq->bit_arrays[index_bit_array] & number_bitset);
+        retVal = (bq->bit_arrays[index_bit_array] & number_bitset);
     }
+    return retVal;
 }
 
 unsigned long check_bit_obj_present_internal( bit_queue *bq, int obj )
@@ -277,6 +287,7 @@ unsigned long check_bit_obj_present_internal( bit_queue *bq, int obj )
 
 int bit_queue_pop( bit_queue *bq, int obj )
 {
+    int retVal = 0;
     int index_bit_array = obj/BIT_ARRAY_SIZE;       //index of the bit array to use.
     int set_bit = obj - (index_bit_array * BIT_ARRAY_SIZE);     //The index of bit to be set in the chosen bit array
     unsigned long number_bit_unset = 0x1 << set_bit;        //The number with the required bit set.
@@ -290,26 +301,27 @@ int bit_queue_pop( bit_queue *bq, int obj )
 
 #pragma omp critical
     {
-	printf("Entered bit_pop critical with thread=%d\n",omp_get_thread_num());
+        printf("Entered bit_pop critical with thread=%d\n",omp_get_thread_num());
         if (bq->bit_arrays[index_bit_array] & number_bit_unset)
         {
             bq->bit_arrays[index_bit_array] &= number_bit_unset_comp;  //set the bit corresponding to obj as 0. Everything else as is.
             bq->num_items--;
-	    if (bq->num_items < 0)
-	    {
-		    printf("Something really bad happened!!! Items went -ve while deleting %d object\n",obj);
-		    printf("Exiting Critical section bit pop with thread=%d\n",omp_get_thread_num());
-		    exit(0);
-	    }
+            if (bq->num_items < 0)
+            {
+                printf("Something really bad happened!!! Items went -ve while deleting %d object\n",obj);
+                printf("Exiting Critical section bit pop with thread=%d\n",omp_get_thread_num());
+                exit(0);
+            }
+            retVal = 1;
         }
         else
-	{	
-	    printf("Exiting Critical section bit pop with thread=%d\n",omp_get_thread_num());
-            return 0;
-	}
-	printf("Exiting Critical section bit pop with thread=%d\n",omp_get_thread_num());
+        {
+            printf("Exiting Critical section bit pop with thread=%d\n",omp_get_thread_num());
+            retVal = 0;
+        }
+        printf("Exiting Critical section bit pop with thread=%d\n",omp_get_thread_num());
     }
-    return 1;
+    return retVal;
     
 }
 
@@ -339,6 +351,7 @@ int bit_queue_pop_internal( bit_queue *bq, int obj )
 
 int queue_add_bit( bit_queue *bq, int obj )
 {
+    int retVal = 0;
     int index_bit_array = obj/BIT_ARRAY_SIZE;       //index of the bit array to use.
     int set_bit = obj - (index_bit_array * BIT_ARRAY_SIZE);     //The index of bit to be set in the chosen bit array
     unsigned long number_bitset = 0x1 << set_bit;        //The number with the required bit set.
@@ -354,11 +367,12 @@ int queue_add_bit( bit_queue *bq, int obj )
         {
             bq->bit_arrays[index_bit_array] |= number_bitset;
             bq->num_items++;
+            retVal = 1;
         }
         else
-            return 0;
+            retVal = 0;
     }
-    return 1;
+    return retVal;
 }
 
 int queue_add_bit_internal( bit_queue *bq, int obj )
