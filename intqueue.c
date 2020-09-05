@@ -301,7 +301,7 @@ int bit_queue_pop( bit_queue *bq, int obj )
 
 #pragma omp critical
     {
-        printf("Entered bit_pop critical with thread=%d\n",omp_get_thread_num());
+        //printf("Entered bit_pop critical with thread=%d\n",omp_get_thread_num());
         if (bq->bit_arrays[index_bit_array] & number_bit_unset)
         {
             bq->bit_arrays[index_bit_array] &= number_bit_unset_comp;  //set the bit corresponding to obj as 0. Everything else as is.
@@ -316,10 +316,10 @@ int bit_queue_pop( bit_queue *bq, int obj )
         }
         else
         {
-            printf("Exiting Critical section bit pop with thread=%d\n",omp_get_thread_num());
+            //printf("Exiting Critical section bit pop with thread=%d\n",omp_get_thread_num());
             retVal = 0;
         }
-        printf("Exiting Critical section bit pop with thread=%d\n",omp_get_thread_num());
+        //printf("Exiting Critical section bit pop with thread=%d\n",omp_get_thread_num());
     }
     return retVal;
     
