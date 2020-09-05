@@ -386,6 +386,7 @@ double value_iterate_level1_partition( world_t *w, int level1_part )
         }   //End of While loop
         printf("Thread: %d got 0 items in queue, so exiting\n",omp_get_thread_num());
         printf("At this time whent this thread is exiting, q->numItems=%d\n",w->part_queue->numitems);
+        exit(0);
     }   //End of Parallel region.
     return maxheat;
 }
