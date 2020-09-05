@@ -127,6 +127,10 @@ int queue_add( queue *q, int obj )
         #ifdef BITQ
             queue_add_bit_internal(q->bitqueue, obj);
         #endif
+        if (q->numitems != q->bitqueue->num_items)
+        {
+            printf("Something seriously wrong!!! number of items in q went off its internal bq, while adding %d",obj);
+        }
     }
 //    t_end = whenq();
 //    q->add_time += (t_end - t_start);
@@ -151,6 +155,10 @@ int queue_pop(queue *q, int *result )
         return 0;
     }
     *result = q->items[q->start_item_ptr];
+    if (*result < 0)
+    {
+	    printf("Result from top of que came to be:%d. start pointer is:%d, next contents=%d.\n",*result,q->start_item_ptr,q->items[((q->start_item_ptr + 1 ) % q->maxitems)]);
+    }
     q->items[q->start_item_ptr] = -1;
     q->numitems--;
     q->start_item_ptr = ((q->start_item_ptr + 1 ) % q->maxitems);
@@ -158,6 +166,10 @@ int queue_pop(queue *q, int *result )
 #ifdef BITQ
     bit_queue_pop_internal(q->bitqueue, *result);
 #endif
+        if (q->numitems != q->bitqueue->num_items)
+        {
+            printf("Something seriously wrong!!! number of items in q went off its internal bq, while popping %d. q->numItems=%d, q->bitqueue->num_items=%d\n",*result, q->numitems, q->bitqueue->num_items);
+        }
     }
     
 //    t_end = whenq();
@@ -269,6 +281,11 @@ int bit_queue_pop( bit_queue *bq, int obj )
         {
             bq->bit_arrays[index_bit_array] &= number_bit_unset_comp;  //set the bit corresponding to obj as 0. Everything else as is.
             bq->num_items--;
+	    if (bq->num_items < 0)
+	    {
+		    printf("Something really bad happened!!! Items went -ve while deleting %d object\n",obj);
+		    exit(0);
+	    }
         }
         else
             return 0;
