@@ -331,7 +331,7 @@ double value_iterate_level1_partition( world_t *w, int level1_part )
             if (next_level0_part == -1)
             {
                 printf("Thread: %d got no part from q\n",omp_get_thread_num());
-                continue;
+                break;
             }
             if ( (next_level0_part >= 0) && (next_level0_part < w->num_global_parts) )
             {
