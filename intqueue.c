@@ -9,6 +9,7 @@
 
 #include "intqueue.h"
 #include <sys/time.h>
+#include <omp.h>
 
 /* don't use floats with this function -- you'll run into precision
  problems!*/
@@ -162,18 +163,21 @@ int queue_pop(queue *q, int *result )
         *result = q->items[q->start_item_ptr];
         if (*result < 0)
         {
-            printf("Result from top of que came to be:%d. start pointer is:%d, next contents=%d.\n",*result,q->start_item_ptr,q->items[((q->start_item_ptr + 1 ) % q->maxitems)]);
+            printf("Result from top of que came to be:%d. start pointer is:%d,numItems=%d maxItems=%d, next contents=%d.\n",*result,q->start_item_ptr,q->numitems,q->maxitems,q->items[((q->start_item_ptr + 1 ) % q->maxitems)]);
         }
         q->items[q->start_item_ptr] = -1;
         q->numitems--;
         q->start_item_ptr = ((q->start_item_ptr + 1 ) % q->maxitems);
-        if ( (q->items[q->start_item_ptr] < 0) && (ITERATING == 1) )
+        if ( (q->items[q->start_item_ptr] < 0) && (ITERATING == 1) && (q->numitems > 0))
         {
             printf("Start item just got messed up. It is:%d, EndItem is:%d,Start Value is:%d, endValue=%d. Item popped:%d. num items:%d!!!\n",q->start_item_ptr,q->end_item_ptr, q->items[q->start_item_ptr],q->items[q->end_item_ptr], *result,q->numitems);
         }
 
     #ifdef BITQ
-        bit_queue_pop_internal(q->bitqueue, *result);
+        if (!bit_queue_pop_internal(q->bitqueue, *result))
+	{
+	    printf("Something wrong!!. ITem:%d was popped from q, but not present in bq.q->numitems=%d,q->bq->num_items=%d\n",*result,q->numitems, q->bitqueue->num_items);
+	}
     #endif
             if (q->numitems != q->bitqueue->num_items)
             {
@@ -286,6 +290,7 @@ int bit_queue_pop( bit_queue *bq, int obj )
 
 #pragma omp critical
     {
+	printf("Entered bit_pop critical with thread=%d\n",omp_get_thread_num());
         if (bq->bit_arrays[index_bit_array] & number_bit_unset)
         {
             bq->bit_arrays[index_bit_array] &= number_bit_unset_comp;  //set the bit corresponding to obj as 0. Everything else as is.
@@ -293,11 +298,16 @@ int bit_queue_pop( bit_queue *bq, int obj )
 	    if (bq->num_items < 0)
 	    {
 		    printf("Something really bad happened!!! Items went -ve while deleting %d object\n",obj);
+		    printf("Exiting Critical section bit pop with thread=%d\n",omp_get_thread_num());
 		    exit(0);
 	    }
         }
         else
+	{	
+	    printf("Exiting Critical section bit pop with thread=%d\n",omp_get_thread_num());
             return 0;
+	}
+	printf("Exiting Critical section bit pop with thread=%d\n",omp_get_thread_num());
     }
     return 1;
     

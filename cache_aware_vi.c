@@ -295,7 +295,7 @@ world_t *init_world(struct StateListNode *list, int component_size, int round)
     
     //Number of parts in each level1 part. //Two params are number of items and the max value of the item.
 //    w->part_queue = queue_conc_create(NUM_PARTS_IN_LEVEL1 + 1, w->num_global_parts);
-    w->part_queue = queue_create(NUM_PARTS_IN_LEVEL1 + 1, w->num_global_parts);
+    w->part_queue = queue_create(w->num_global_parts, w->num_global_parts);
     if (w->part_queue == NULL) {
         wlog( 1, "Error creating queue!\n" );
         exit( 0 );
