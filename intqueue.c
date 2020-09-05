@@ -151,7 +151,7 @@ int queue_pop(queue *q, int *result )
     {
         if ( (q->numitems <= 0) || (q->start_item_ptr < 0) )
         {
-            //fprintf( stderr, "Hey! queue's empty!\n" );
+            fprintf( stderr, "Hey! queue's empty!\n" );
             return 0;
         }
         if ((q->start_item_ptr < 0) || (q->start_item_ptr >= q->maxitems))
@@ -168,7 +168,7 @@ int queue_pop(queue *q, int *result )
         q->start_item_ptr = ((q->start_item_ptr + 1 ) % q->maxitems);
         if (q->items[q->start_item_ptr] < 0)
         {
-            printf("Start item just got messed up. It is:%d, Value is:%d. Item popped:%d. num items:%d!!!\n",q->start_item_ptr,q->items[q->start_item_ptr],*result,q->numitems);
+            printf("Start item just got messed up. It is:%d, EndItem is:%d,Start Value is:%d, endValue=%d. Item popped:%d. num items:%d!!!\n",q->start_item_ptr,q->end_item_ptr, q->items[q->start_item_ptr],q->items[q->end_item_ptr], *result,q->numitems);
         }
 
     #ifdef BITQ
