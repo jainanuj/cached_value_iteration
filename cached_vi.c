@@ -329,7 +329,10 @@ double value_iterate_level1_partition( world_t *w, int level1_part )
         {
             next_level0_part = get_next_part(w);
             if (next_level0_part == -1)
+            {
+                printf("Thread: %d got no part from q\n",omp_get_thread_num());
                 continue;
+            }
             if ( (next_level0_part >= 0) && (next_level0_part < w->num_global_parts) )
             {
 /*                if (!queue_conc_add_bit(w->part_level0_processing_bit_queue, next_level0_part))  //Set processing bit for next_lelvel0_part
@@ -382,6 +385,7 @@ double value_iterate_level1_partition( world_t *w, int level1_part )
             }
         }   //End of While loop
         printf("Thread: %d got 0 items in queue, so exiting\n",omp_get_thread_num());
+        printf("At this time whent this thread is exiting, q->numItems=%d\n",w->part_queue->numitems);
     }   //End of Parallel region.
     return maxheat;
 }
