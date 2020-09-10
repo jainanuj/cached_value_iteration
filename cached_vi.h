@@ -33,7 +33,7 @@ unsigned long check_dirty(world_t *w, int l_part);
 int add_level0_queue(world_t *w, int l_part);
 int clear_level0_dirty_flag(world_t *w, int l_part);
 int part_available_to_process(world_t *w);
-int get_next_part(world_t *w);
+unsigned int get_next_part(world_t *w);
 void add_level0_partition_deps_for_eval(world_t *w, int l_part_changed);
 int set_dirty(world_t *w, int l_part);
 void add_partition_for_eval(world_t *w, int l_part);

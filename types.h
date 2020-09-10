@@ -115,19 +115,19 @@ typedef struct world_t {
     level1_part_t   *level1_parts;
     heap *part_heap;
     
-/*    queue_conc *part_queue;
+    queue_conc *part_queue;
     queue_conc *part_level1_queue;
     
-    bit_queue_conc *part_level0_bit_queue;
-    bit_queue *part_level0_processing_bit_queue;
-    bit_queue *part_level0_waiting_bitq;*/
+    bf_conc *part_level0_bit_queue;
+    bf_conc *part_level0_processing_bit_queue;
+    bf_conc *part_level0_waiting_bitq;
 
-    queue *part_queue;
+/*    queue *part_queue;
     queue *part_level1_queue;
     
     bit_queue *part_level0_bit_queue;
     bit_queue *part_level0_processing_bit_queue;
-    bit_queue *part_level0_waiting_bitq;
+    bit_queue *part_level0_waiting_bitq;*/
 
     
 //    bit_queue *terminal_bit_queue;

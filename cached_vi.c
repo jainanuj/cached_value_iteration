@@ -298,21 +298,24 @@ double value_iterate( world_t *w, double epsilon_partition_initial, double epsil
 void monitor_numbers(world_t *w)
 {
     printf("In monitor numbers \n");
-    printf("# of items in ActivQ=%d\n", w->part_queue->numitems);
-    printf("# of items in ProcessMap=%d\n", w->part_level0_processing_bit_queue->num_items);
-    printf("# of items in Wait=%d\n", w->part_level0_waiting_bitq->num_items);
+    printf("# of items in ActivQ=%d\n", (w->part_queue->REAR - w->part_queue->FRONT));
+//    printf("# of items in ProcessMap=%d\n", w->part_level0_processing_bit_queue->num_items);
+//    printf("# of items in Wait=%d\n", w->part_level0_waiting_bitq->num_items);
 }
 
 double value_iterate_level1_partition( world_t *w, int level1_part )
 {
-    int i, l_part, next_level0_part, loopCount = 0;
+    int i, l_part; // ,loopCount = 0;
+    unsigned int next_level0_part;
     double  tmp, maxheat = 0;
     int done = 0;
     
-//    empty_queue_conc(w->part_queue);
-    empty_queue(w->part_queue);
-    empty_bit_queue(w->part_level0_waiting_bitq);
-    empty_bit_queue(w->part_level0_processing_bit_queue);
+//    empty_queue(w->part_queue);
+//    empty_bit_queue(w->part_level0_waiting_bitq);
+//    empty_bit_queue(w->part_level0_processing_bit_queue);
+    empty_queue_conc(w->part_queue);
+    empty_bf_conc(w->part_level0_waiting_bitq);
+    empty_bf_conc(w->part_level0_processing_bit_queue);
     ITERATING = 1;
     
     for (i=0; i< w->level1_parts[level1_part].num_sub_parts; i++ )
@@ -329,13 +332,8 @@ double value_iterate_level1_partition( world_t *w, int level1_part )
     {
         while (part_available_to_process(w))// || bit_queue_has_items(w->part_level0_processing_bit_queue))     //|| processing part
         {
-            if (done == 1)
-            {
-                printf("Thread: %d got done as true so breaking out.\n",omp_get_thread_num());
-                break;
-            }
             next_level0_part = get_next_part(w);
-            if (next_level0_part == -1)
+            if (next_level0_part == EMPTYVAL)
             {
                 printf("Thread: %d got no part from q\n",omp_get_thread_num());
                 done = 1;
@@ -343,36 +341,24 @@ double value_iterate_level1_partition( world_t *w, int level1_part )
             }
             if ( (next_level0_part >= 0) && (next_level0_part < w->num_global_parts) )
             {
-/*                if (!queue_conc_add_bit(w->part_level0_processing_bit_queue, next_level0_part))  //Set processing bit for next_lelvel0_part
-                {
-                    wlog(1, "STRANGE!!. Part %d was to be added for processing but processing bit was already set. Should be rare. Will move on to next\n",next_level0_part);
-                    continue;
-                }*/
-//#pragma omp critical
-                queue_add_bit(w->part_level0_processing_bit_queue, next_level0_part);
+                bf_conc_add_bit(w->part_level0_processing_bit_queue, next_level0_part);
                 
                 tmp = value_iterate_partition(w, next_level0_part);     //Process
+//                bit_queue_pop(w->part_level0_processing_bit_queue, next_level0_part);
+                bf_atomic_unset(w->part_level0_processing_bit_queue, (int)next_level0_part);
                 
-/*                if (!bit_queue_conc_pop(w->part_level0_processing_bit_queue, next_level0_part))  //reset processing bit.
+                if (check_bit_obj_present_conc(w->part_level0_waiting_bitq, next_level0_part))      //check if in wait, move back to q as processing done.
                 {
-                    wlog(1, "STRANGEE!!!. Part %d was just done processing but processing bit was already unset\n",next_level0_part);
-                }*/
-//#pragma omp critical
-                bit_queue_pop(w->part_level0_processing_bit_queue, next_level0_part);
-                
-                if (check_bit_obj_present(w->part_level0_waiting_bitq, next_level0_part))      //check if in wait, move back to q as processing done.
-                {
-//#pragma omp critical
-                    bit_queue_pop(w->part_level0_waiting_bitq, next_level0_part);
-//                    queue_conc_add(w->part_queue, next_level0_part);
-                    queue_add(w->part_queue, next_level0_part);
+                    bf_atomic_unset(w->part_level0_waiting_bitq, next_level0_part);
+                    queue_conc_enq(w->part_queue, next_level0_part);
+//                    queue_add(w->part_queue, next_level0_part);
                 }
                 else  if (tmp > heat_epsilon_overall)       //look at deps only if it was not added back to ActiveQ from waiting && tmp > epsilon
                 {
                     //Add local deps to queue. Mark global as dirty.
                     add_level0_partition_deps_for_eval(w, next_level0_part);    //If a dep is already in processing, add it to wait. Add it to q only if not already in processing or waiting.
-                    if (w->part_queue->numitems > w->level1_parts[level1_part].num_sub_parts )
-                        wlog(1, "storing too many items in level0 q. NumItems = %d\n",w->part_queue->numitems);
+                    if ( (w->part_queue->REAR - w->part_queue->FRONT) > w->level1_parts[level1_part].num_sub_parts )
+                        wlog(1, "storing too many items in level0 q. NumItems = %d\n",(w->part_queue->REAR - w->part_queue->FRONT));
                     maxheat = tmp>maxheat ? tmp: maxheat;
         /*            if (w->parts[next_level0_part].convergence_factor > heat_epsilon_overall)
                     {
@@ -382,18 +368,9 @@ double value_iterate_level1_partition( world_t *w, int level1_part )
                 w->new_partition_wash++;
                 w->parts[next_level0_part].washes++;
             }
-#pragma omp single
-            {
-                loopCount++;
-                if (loopCount % 1000 == 0)
-                {
-                    printf("LoopCount is %d. Calling monitor numbers.\n",loopCount);
-                    monitor_numbers(w);
-                }
-            }
         }   //End of While loop
         printf("Thread: %d got 0 items in queue, so exiting\n",omp_get_thread_num());
-        printf("At this time whent this thread is exiting, q->numItems=%d\n",w->part_queue->numitems);
+        printf("At this time whent this thread is exiting, q->numItems=%d\n",(w->part_queue->REAR - w->part_queue->FRONT));
         //exit(0);
     }   //End of Parallel region.
     return maxheat;
@@ -487,13 +464,13 @@ double value_iterate_partition( world_t *w, int l_part )
 int level1_part_available_to_process(world_t *w)
 {
 //    return queue_conc_has_items(w->part_level1_queue);
-    return queue_has_items(w->part_level1_queue);
+    return queue_conc_has_items(w->part_level1_queue);
 }
 int get_next_level1_part(world_t *w)
 {
-    int next_level1_partition;
-//    queue_conc_pop(w->part_level1_queue, &next_level1_partition);
-    queue_pop(w->part_level1_queue, &next_level1_partition);
+    unsigned int next_level1_partition;
+    queue_conc_deq(w->part_level1_queue, &next_level1_partition);
+//    queue_pop(w->part_level1_queue, &next_level1_partition);
     return next_level1_partition;
 }
 void add_level1_parts_deps_for_eval(world_t *w, int level1_part_changed)
@@ -508,41 +485,41 @@ void add_level1_parts_deps_for_eval(world_t *w, int level1_part_changed)
     index1 = 0;
     while ( med_hash_iterate( dep_part_hash, &index1, &level1_start_part, &v ) )
     {
-//        queue_conc_add(w->part_level1_queue, level1_start_part);
-        queue_add(w->part_level1_queue, level1_start_part);
+        queue_conc_enq(w->part_level1_queue, level1_start_part);
+//        queue_add(w->part_level1_queue, level1_start_part);
     }
 }
 
 int clear_level0_queue(world_t *w)
 {
-//    return empty_queue_conc(w->part_queue);
-    return empty_queue(w->part_queue);
+    return empty_queue_conc(w->part_queue);
+//    return empty_queue(w->part_queue);
 }
 unsigned long check_dirty(world_t *w, int l_part)
 {
-//    return check_bit_obj_present_conc(w->part_level0_bit_queue, l_part);
-    return check_bit_obj_present(w->part_level0_bit_queue, l_part);
+    return check_bit_obj_present_conc(w->part_level0_bit_queue, l_part);
+//    return check_bit_obj_present(w->part_level0_bit_queue, l_part);
 }
 int add_level0_queue(world_t *w, int l_part)
 {
-//    return queue_conc_add(w->part_queue, l_part);
-    return queue_add(w->part_queue, l_part);
+    return queue_conc_enq(w->part_queue, l_part);
+//    return queue_add(w->part_queue, l_part);
 }
 int clear_level0_dirty_flag(world_t *w, int l_part)
 {
-//    return bit_queue_conc_pop(w->part_level0_bit_queue, l_part);
-    return bit_queue_pop(w->part_level0_bit_queue, l_part);
+    return bf_atomic_unset(w->part_level0_bit_queue, l_part);
+//    return bit_queue_pop(w->part_level0_bit_queue, l_part);
 }
 int part_available_to_process(world_t *w)
 {
-//    return queue_conc_has_items(w->part_queue);
-    return queue_has_items(w->part_queue);
+    return queue_conc_has_items(w->part_queue);
+//    return queue_has_items(w->part_queue);
 }
-int get_next_part(world_t *w)
+unsigned int get_next_part(world_t *w)
 {
-    int next_partition;
-//    queue_conc_pop(w->part_queue, &next_partition);
-    queue_pop(w->part_queue, &next_partition);
+    unsigned int next_partition;
+    queue_conc_deq(w->part_queue, &next_partition);
+//    queue_pop(w->part_queue, &next_partition);
     return next_partition;
 }
 void add_level0_partition_deps_for_eval(world_t *w, int l_part_changed)
@@ -556,14 +533,14 @@ void add_level0_partition_deps_for_eval(world_t *w, int l_part_changed)
     index1 = 0;
     while ( med_hash_iterate( dep_part_hash, &index1, &l_start_part, &v ) )
     {
-        if ( !(check_bit_obj_present(w->part_level0_processing_bit_queue, l_start_part) ||     //Add only if it is not already waiting or in processing.
-              check_bit_obj_present(w->part_level0_waiting_bitq, l_start_part)) )
+        if ( !(check_bit_obj_present_conc(w->part_level0_processing_bit_queue, l_start_part) ||     //Add only if it is not already waiting or in processing.
+              check_bit_obj_present_conc(w->part_level0_waiting_bitq, l_start_part)) )
 //            queue_conc_add(w->part_queue, l_start_part);
-            queue_add(w->part_queue, l_start_part);
-        else if (check_bit_obj_present(w->part_level0_processing_bit_queue, l_start_part))
+            queue_conc_enq(w->part_queue, l_start_part);
+        else if (check_bit_obj_present_conc(w->part_level0_processing_bit_queue, l_start_part))
         {
 //#pragma omp critical
-            queue_add_bit(w->part_level0_waiting_bitq, l_start_part);
+            bf_conc_add_bit(w->part_level0_waiting_bitq, l_start_part);
         }
     }
     
@@ -578,14 +555,14 @@ void add_level0_partition_deps_for_eval(world_t *w, int l_part_changed)
 void add_partition_for_eval(world_t *w, int l_part)
 {
 //    queue_conc_add(w->part_queue, l_part);
-    queue_add(w->part_queue, l_part);
+    queue_conc_enq(w->part_queue, l_part);
     set_dirty(w, l_part);
 }
 
 int set_dirty(world_t *w, int l_part)
 {
 //    return queue_conc_add_bit(w->part_level0_bit_queue, l_part);
-    return queue_add_bit(w->part_level0_bit_queue, l_part);
+    return bf_conc_add_bit(w->part_level0_bit_queue, l_part);
 }
 
 //Need to minimize cost (not maximize reward)
