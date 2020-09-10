@@ -61,6 +61,7 @@ bf_conc* create_bit_queue_conc( int maxitems );
 //int queue_conc_add_bit( bit_queue_conc *q, int obj );
 int bf_conc_add_bit( bf_conc *q, unsigned int obj );
 int bf_atomic_unset( bf_conc *bq, int obj );
+int bf_has_items(bf_conc *bq);
 int empty_bf_conc(bf_conc *bq);
 void destroy_bf_conc(bf_conc *bq);
 unsigned long check_bit_obj_present_conc( bf_conc *bq, int obj );

@@ -226,6 +226,16 @@ int bf_atomic_unset(bf_conc *bq, int obj )
     return 1;
 }
 
+int bf_has_items(bf_conc *bq)
+{
+    int i = 0;
+    for (i =0; i < bq->max_bit_arrays; i++)
+    {
+        if (bq->bit_arrays[i] != 0)
+            return 1;
+    }
+    return 0;
+}
 
 void destroy_bf_conc(bf_conc *bq)
 {

@@ -350,7 +350,7 @@ double value_iterate_level1_partition( world_t *w, int level1_part )
                     }
                     #pragma omp task firstprivate(next_level0_part) private(tmp)
                     {
-			//printf("Thread %d starting task with part: %d\n",omp_get_thread_num(), next_level0_part);
+                        //printf("Thread %d starting task with part: %d\n",omp_get_thread_num(), next_level0_part);
                         if ( (next_level0_part >= 0) && (next_level0_part < w->num_global_parts) )
                         {
                             if (bf_conc_add_bit(w->part_level0_processing_bit_queue, next_level0_part) )
