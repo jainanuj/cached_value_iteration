@@ -330,35 +330,41 @@ double value_iterate_level1_partition( world_t *w, int level1_part )
     done = 0;
 #pragma omp parallel private(next_level0_part, tmp) shared(w, done) proc_bind(spread)
     {
-        while (part_available_to_process(w))// || bit_queue_has_items(w->part_level0_processing_bit_queue))     //|| processing part
+#pragma omp single
         {
-            next_level0_part = get_next_part(w);
-            if (next_level0_part == EMPTYVAL)
+            while (part_available_to_process(w))// || bit_queue_has_items(w->part_level0_processing_bit_queue))     //|| processing part
             {
-                printf("Thread: %d got no part from q\n",omp_get_thread_num());
-                done = 1;
-                break;
-            }
-            if ( (next_level0_part >= 0) && (next_level0_part < w->num_global_parts) )
-            {
-                if (bf_conc_add_bit(w->part_level0_processing_bit_queue, next_level0_part) )
+                next_level0_part = get_next_part(w);
+                if (next_level0_part == EMPTYVAL)
                 {
-                    tmp = value_iterate_partition(w, next_level0_part);     //Process
-                    //                bit_queue_pop(w->part_level0_processing_bit_queue, next_level0_part);
-                    bf_atomic_unset(w->part_level0_processing_bit_queue, (int)next_level0_part);        //Free up the processing bit for this partition.
-                    if (tmp > heat_epsilon_overall)       //look at deps only if it was not added back to ActiveQ from waiting && tmp > epsilon
-                    {
-                        //Add local deps to queue. Mark global as dirty.
-                        add_level0_partition_deps_for_eval(w, next_level0_part);    //If a dep is already in processing, add it to wait. Add it to q only if not already in processing or waiting.
-                        if ( (w->part_queue->REAR - w->part_queue->FRONT) > w->level1_parts[level1_part].num_sub_parts )
-                            wlog(1, "storing too many items in level0 q. NumItems = %d\n",(w->part_queue->REAR - w->part_queue->FRONT));
-                        maxheat = tmp>maxheat ? tmp: maxheat;
-                    }
-                    w->new_partition_wash++;
-                    w->parts[next_level0_part].washes++;
+                    printf("Thread: %d got no part from q\n",omp_get_thread_num());
+                    done = 1;
+                    break;
                 }
-            }
-        }   //End of While loop
+                #pragma omp task firstprivate(next_level0_part) private(tmp)
+                {
+                    if ( (next_level0_part >= 0) && (next_level0_part < w->num_global_parts) )
+                    {
+                        if (bf_conc_add_bit(w->part_level0_processing_bit_queue, next_level0_part) )
+                        {
+                            tmp = value_iterate_partition(w, next_level0_part);     //Process
+                            //                bit_queue_pop(w->part_level0_processing_bit_queue, next_level0_part);
+                            bf_atomic_unset(w->part_level0_processing_bit_queue, (int)next_level0_part);        //Free up the processing bit for this partition.
+                            if (tmp > heat_epsilon_overall)       //look at deps only if it was not added back to ActiveQ from waiting && tmp > epsilon
+                            {
+                                //Add local deps to queue. Mark global as dirty.
+                                add_level0_partition_deps_for_eval(w, next_level0_part);    //If a dep is already in processing, add it to wait. Add it to q only if not already in processing or waiting.
+                                if ( (w->part_queue->REAR - w->part_queue->FRONT) > w->level1_parts[level1_part].num_sub_parts )
+                                    wlog(1, "storing too many items in level0 q. NumItems = %d\n",(w->part_queue->REAR - w->part_queue->FRONT));
+                                maxheat = tmp>maxheat ? tmp: maxheat;
+                            }
+                            w->new_partition_wash++;
+                            w->parts[next_level0_part].washes++;
+                        }
+                    }
+                }       //End of Task.
+            }   //End of While loop
+        }
         printf("Thread: %d got 0 items in queue, so exiting\n",omp_get_thread_num());
         printf("At this time whent this thread is exiting, q->numItems=%d\n",(w->part_queue->REAR - w->part_queue->FRONT));
         //exit(0);
