@@ -314,7 +314,7 @@ double value_iterate_level1_partition( world_t *w, int level1_part )
 //    empty_bit_queue(w->part_level0_waiting_bitq);
 //    empty_bit_queue(w->part_level0_processing_bit_queue);
     empty_queue_conc(w->part_queue);
-    empty_bf_conc(w->part_level0_waiting_bitq);
+//    empty_bf_conc(w->part_level0_waiting_bitq);
     empty_bf_conc(w->part_level0_processing_bit_queue);
     ITERATING = 1;
     
@@ -341,32 +341,22 @@ double value_iterate_level1_partition( world_t *w, int level1_part )
             }
             if ( (next_level0_part >= 0) && (next_level0_part < w->num_global_parts) )
             {
-                bf_conc_add_bit(w->part_level0_processing_bit_queue, next_level0_part);
-                
-                tmp = value_iterate_partition(w, next_level0_part);     //Process
-//                bit_queue_pop(w->part_level0_processing_bit_queue, next_level0_part);
-                bf_atomic_unset(w->part_level0_processing_bit_queue, (int)next_level0_part);
-                
-                if (check_bit_obj_present_conc(w->part_level0_waiting_bitq, next_level0_part))      //check if in wait, move back to q as processing done.
+                if (bf_conc_add_bit(w->part_level0_processing_bit_queue, next_level0_part) )
                 {
-                    bf_atomic_unset(w->part_level0_waiting_bitq, next_level0_part);
-                    queue_conc_enq(w->part_queue, next_level0_part);
-//                    queue_add(w->part_queue, next_level0_part);
-                }
-                else  if (tmp > heat_epsilon_overall)       //look at deps only if it was not added back to ActiveQ from waiting && tmp > epsilon
-                {
-                    //Add local deps to queue. Mark global as dirty.
-                    add_level0_partition_deps_for_eval(w, next_level0_part);    //If a dep is already in processing, add it to wait. Add it to q only if not already in processing or waiting.
-                    if ( (w->part_queue->REAR - w->part_queue->FRONT) > w->level1_parts[level1_part].num_sub_parts )
-                        wlog(1, "storing too many items in level0 q. NumItems = %d\n",(w->part_queue->REAR - w->part_queue->FRONT));
-                    maxheat = tmp>maxheat ? tmp: maxheat;
-        /*            if (w->parts[next_level0_part].convergence_factor > heat_epsilon_overall)
+                    tmp = value_iterate_partition(w, next_level0_part);     //Process
+                    //                bit_queue_pop(w->part_level0_processing_bit_queue, next_level0_part);
+                    bf_atomic_unset(w->part_level0_processing_bit_queue, (int)next_level0_part);        //Free up the processing bit for this partition.
+                    if (tmp > heat_epsilon_overall)       //look at deps only if it was not added back to ActiveQ from waiting && tmp > epsilon
                     {
-                        add_partition_for_eval(w, next_level0_part);        //Add it back to the queue as even though it converged to convergence factor, the factor was bigger than final epsilon.
-                    }*/
+                        //Add local deps to queue. Mark global as dirty.
+                        add_level0_partition_deps_for_eval(w, next_level0_part);    //If a dep is already in processing, add it to wait. Add it to q only if not already in processing or waiting.
+                        if ( (w->part_queue->REAR - w->part_queue->FRONT) > w->level1_parts[level1_part].num_sub_parts )
+                            wlog(1, "storing too many items in level0 q. NumItems = %d\n",(w->part_queue->REAR - w->part_queue->FRONT));
+                        maxheat = tmp>maxheat ? tmp: maxheat;
+                    }
+                    w->new_partition_wash++;
+                    w->parts[next_level0_part].washes++;
                 }
-                w->new_partition_wash++;
-                w->parts[next_level0_part].washes++;
             }
         }   //End of While loop
         printf("Thread: %d got 0 items in queue, so exiting\n",omp_get_thread_num());
@@ -533,15 +523,15 @@ void add_level0_partition_deps_for_eval(world_t *w, int l_part_changed)
     index1 = 0;
     while ( med_hash_iterate( dep_part_hash, &index1, &l_start_part, &v ) )
     {
-        if ( !(check_bit_obj_present_conc(w->part_level0_processing_bit_queue, l_start_part) ||     //Add only if it is not already waiting or in processing.
+/*        if ( !(check_bit_obj_present_conc(w->part_level0_processing_bit_queue, l_start_part) ||     //Add only if it is not already waiting or in processing.
               check_bit_obj_present_conc(w->part_level0_waiting_bitq, l_start_part)) )
-//            queue_conc_add(w->part_queue, l_start_part);
-            queue_conc_enq(w->part_queue, l_start_part);
-        else if (check_bit_obj_present_conc(w->part_level0_processing_bit_queue, l_start_part))
+//            queue_conc_add(w->part_queue, l_start_part);*/
+        queue_conc_enq(w->part_queue, l_start_part);
+/*        else if (check_bit_obj_present_conc(w->part_level0_processing_bit_queue, l_start_part))
         {
 //#pragma omp critical
             bf_conc_add_bit(w->part_level0_waiting_bitq, l_start_part);
-        }
+        }*/
     }
     
     dep_part_hash = w->parts[ l_part_changed ].my_global_dependents;

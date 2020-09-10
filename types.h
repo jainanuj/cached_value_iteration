@@ -120,7 +120,7 @@ typedef struct world_t {
     
     bf_conc *part_level0_bit_queue;
     bf_conc *part_level0_processing_bit_queue;
-    bf_conc *part_level0_waiting_bitq;
+//    bf_conc *part_level0_waiting_bitq;
 
 /*    queue *part_queue;
     queue *part_level1_queue;
