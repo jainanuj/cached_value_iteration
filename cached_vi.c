@@ -337,11 +337,11 @@ double value_iterate_level1_partition( world_t *w, int level1_part )
             #pragma omp task untied
             {
                 printf("Task generating thread is:%d\n",omp_get_thread_num());
-                while (part_available_to_process(w))// || bit_queue_has_items(w->part_level0_processing_bit_queue))     //|| processing part
+                while (part_available_to_process(w) || bf_has_items(w->part_level0_processing_bit_queue))      //|| processing part
                 {
                     next_level0_part = get_next_part(w);
                     //printf("part retreived from q is:%d\n",next_level0_part);
-		    if (next_level0_part == EMPTYVAL)
+                    if (next_level0_part == EMPTYVAL)
                     {
                         printf("Thread: %d got no part from q\n",omp_get_thread_num());
                         printf("Items in the queue=%d\n",(w->part_queue->REAR - w->part_queue->FRONT));
@@ -372,7 +372,7 @@ double value_iterate_level1_partition( world_t *w, int level1_part )
                         }   //Task has nothing to do if the part given was out of bounds.
                     }       //End of Task.
                 }   //End of While loop
-		printf("While loop terminated. numItems=%d\n",(w->part_queue->REAR - w->part_queue->FRONT));
+                printf("While loop terminated. numItems=%d\n",(w->part_queue->REAR - w->part_queue->FRONT));
             }   //End of single block task.
         }   //End of single.
         printf("At this time whent this thread is exiting, q->numItems=%d\n",(w->part_queue->REAR - w->part_queue->FRONT));
