@@ -14,7 +14,7 @@
 
 #define PART_SIZE  5000//6100       //3
 #define ARR_SIZE  1000000
-#define NUM_PARTS_IN_LEVEL1 1000
+#define NUM_PARTS_IN_LEVEL1 100000
 
 
 typedef struct vec_t {

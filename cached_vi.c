@@ -368,8 +368,7 @@ double value_iterate_partition( world_t *w, int l_part )
     //First iteration of the partition.
 
 #pragma omp parallel for default(shared) private(i, l_state, delta)  \
-schedule(dynamic,chunk)      \
-reduction(max:max_heat)
+reduction(max:max_heat) proc_bind(close)
     for ( i = 0; i < state_cnt; i++ )
     {
         l_state = pp->variable_ordering[i];
@@ -395,8 +394,7 @@ reduction(max:max_heat)
             part_internal_heat = 0;
 
 #pragma omp parallel for default(shared) private(i, l_state, delta)  \
-schedule(dynamic,chunk)      \
-reduction(max:part_internal_heat)
+reduction(max:part_internal_heat) proc_bind(close)
             for ( i = 0; i < state_cnt; i++ )
             {
                 l_state = pp->variable_ordering[i];
