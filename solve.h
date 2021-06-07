@@ -2,6 +2,7 @@
 
 /* A boolean type will be useful */
 typedef enum { false, true } MyBoolean;
+//enum MyBoolean { false, true };
 
 /* Change this as more algorithms are added */
 #define NUM_METHODS  34
